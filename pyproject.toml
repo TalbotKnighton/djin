@@ -1,0 +1,39 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "djin"
+version = "0.1.0"
+description = "A Python package called djin"
+readme = "README.md"
+requires-python = ">=3.8"
+license = {text = "MIT"}
+authors = [
+    {name = "Talbot Knighton", email = "talbotknighton@gmail.com"},
+]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+# Dependencies
+dependencies = [
+    "matplotlib>=3.10.7",
+    "numpy>=2.3.4",
+    "numpydantic>=1.7.0",
+    "plotly>=6.4.0",
+    "pydantic>=2.12.4",
+    "scipy>=1.16.3",
+    "scipy-stubs>=1.11.0",
+]
+
+[project.urls]
+"Homepage" = "https://github.com/talbotknighton/djin"
+"Bug Tracker" = "https://github.com/talbotknighton/djin/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/djin"]
+
+[tool.hatch.build]
+packages = ["src"]
