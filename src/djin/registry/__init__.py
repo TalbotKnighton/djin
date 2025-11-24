@@ -1,5 +1,5 @@
-from djin.registry.core import current_registry
+from djin.registry.core import _context_registry
 
 __all__ = [
-    "current_registry",
+    "_context_registry",
 ]
