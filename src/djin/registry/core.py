@@ -41,21 +41,21 @@ def get_named_type_generic(self: pyd.BaseModel, name: str) -> Any:
     return self.__pydantic_generic_metadata__["args"][i]
 
 
-class RegistrantID(pyd.BaseModel):
-    model_config = pyd.ConfigDict(extra="forbid", frozen=True)
-
-    system: Optional[str] = None
-    subsystem: Optional[str] = None
-    component: Optional[str] = None
-
-
 class Registrant(pyd.BaseModel):
     model_config = pyd.ConfigDict(extra="allow", frozen=False)
 
-    id: RegistrantID = pyd.Field(
-        default_factory=RegistrantID,
+    id: str = pyd.Field(
+        default_factory=str,
         description="Unique identifier for the registrant",
     )
+
+    @pyd.model_validator(mode="before")
+    @classmethod
+    def remove_computed_fields(cls, values: dict) -> dict:
+        for p in cls.model_computed_fields:
+            if p in values:
+                del values[p]
+        return values
 
     @pyd.computed_field
     @property
@@ -86,10 +86,10 @@ T = TypeVar("T", bound=Registrant)
 class Registry(Registrant, Generic[T]):
     model_config = pyd.ConfigDict(extra="forbid", frozen=False)
 
-    registrants: dict[RegistrantID, T] = {}
+    registrants: dict[str, T] = {}
 
     @pyd.validate_call
-    def get_registrant(self, id: RegistrantID) -> T | None:
+    def get_registrant(self, id: str) -> T | None:
         registrant_type = get_named_type_generic(
             self,
             "T",
@@ -170,7 +170,7 @@ class Reference(pyd.BaseModel, Generic[T]):
         frozen=True,
     )
     # type: Annotated[str, pyd.BeforeValidator(get_type_name)]
-    id: RegistrantID
+    id: str
 
     @pyd.computed_field
     @property
@@ -221,7 +221,7 @@ class Reference(pyd.BaseModel, Generic[T]):
         return values
 
 
-def ref(type: Type[T], id: RegistrantID) -> Reference[T]:
+def ref(type: Type[T], id: str) -> Reference[T]:
     return Reference[type](id=id)
 
 
@@ -238,20 +238,18 @@ def _test():
         data: List[str]
 
     # Create a specialized registry for your custom type
-    my_registry = Registry[B](id=RegistrantID(component="my_registry"))
+    my_registry = Registry[B](id="my_registry")
 
     with set_context_registry(my_registry):
         # Create and automatically register the custom registrant
 
-        with set_context_registry(
-            Registry[A](id=RegistrantID(component="my_registry2")).model_copy(deep=True)
-        ):
+        with set_context_registry(Registry[A](id="my_registry2").model_copy(deep=True)):
             custom_item = A(
-                id=RegistrantID(component="custom1"),
+                id="custom1",
                 data=["a", "b", "c"],
             ).register()
             custom_item2 = A(
-                id=RegistrantID(component="custom2"),
+                id="custom2",
                 data=["a", "b", "c"],
                 ref=ref(type=A, id=custom_item.id),
             ).register()
@@ -269,12 +267,12 @@ def _test():
             print(s.data)
             print("Nice!")
         custom_item = B(
-            id=RegistrantID(component="custom2"),
+            id="custom2",
             data=["a", "b", "c"],
         )
         custom_item.register()  # Explicitly register to context registry
         # Retrieve it from the registry
-        retrieved = my_registry.get_registrant(RegistrantID(component="custom1"))
+        retrieved = my_registry.get_registrant("custom1")
         # if retrieved:
         #     print(retrieved.data)  # Outputs: ['a', 'b', 'c']
         print(
