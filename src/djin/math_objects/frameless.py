@@ -2,15 +2,14 @@ from __future__ import annotations
 from typing import Annotated, Any, Iterable, Optional, Self, Type, TypeAlias
 
 from numpydantic import NDArray
-import pydantic as pyd
-from pydantic import BaseModel, ConfigDict, Field, GetPydanticSchema
 import numpy as np
 from scipy.spatial.transform import Rotation as ScipyRotation
+from djin.base import pydantic as pyd, immutable
 
 # https://github.com/p2p-ld/numpydantic/issues/41
 NDArrayFloat64: TypeAlias = Annotated[
     np.ndarray[Any, np.dtype[np.float64]],
-    GetPydanticSchema(
+    pyd.GetPydanticSchema(
         lambda tp, handler: NDArray[Any, np.float64].__get_pydantic_core_schema__(  # type: ignore
             NDArray[Any, np.float64], handler
         )
@@ -18,24 +17,39 @@ NDArrayFloat64: TypeAlias = Annotated[
 ]
 
 
-class VectorR3(BaseModel):
-    model_config = ConfigDict(
-        extra="forbid",
-        frozen=True,
-    )
+@immutable
+class VectorR3(pyd.BaseModel):
+    model_config = pyd.ConfigDict(extra="forbid")
 
     # Define a 1D array of length 3 with float64 dtype
-    array: NDArrayFloat64 = Field(default_factory=lambda: np.array((0.0, 0.0, 0.0)))
+    data: tuple[float, float, float] = (0, 0, 0)
 
-    @pyd.field_validator("array")
-    def validate_array(cls, v: NDArrayFloat64) -> NDArrayFloat64:
+    def all_close(self, other: VectorR3 | NDArrayFloat64 | Iterable[float]) -> bool:
+        return np.allclose(self.array, np.array(other))
+
+    @classmethod
+    def from_array(cls, array: NDArrayFloat64) -> Self:
         """
-        Validates that the input array is of shape (3,).
+        Creates a new `VectorR3` instance from a 3x3 numpy array.
+
+        Returns:
+            (VectorR3): New `VectorR3` instance.
         """
-        arr = np.asarray(v, dtype=np.float64)
-        if arr.shape != (3,):
-            raise ValueError(f"Array must be of shape (3,), got {arr.shape}")
-        return arr
+        return cls(data=array.tolist())
+
+    @property
+    def array(self) -> NDArrayFloat64:
+        return np.asarray(self.data)
+
+    # @pyd.field_validator("tuple")
+    # def validate_array(cls, v: tuple[float, float, float]) -> NDArrayFloat64:
+    #     """
+    #     Validates that the input array is of shape (3,).
+    #     """
+    #     arr = np.asarray(v, dtype=np.float64)
+    #     if arr.shape != (3,):
+    #         raise ValueError(f"Array must be of shape (3,), got {arr.shape}")
+    #     return arr
 
     # The Shape class already handles validation, so an additional validator is optional
     @property
@@ -72,14 +86,14 @@ class VectorR3(BaseModel):
                 arrays.append(input_)
         result = getattr(ufunc, method)(*arrays, **kwargs)
         if isinstance(result, np.ndarray) and result.shape == (3,):
-            return self._constructor(array=result)
+            return self._constructor.from_array(array=result)
         return result
 
     # def __iter__(self) -> Iterable[float]:
     #     return iter(self.array)
 
     def __neg__(self) -> VectorR3:
-        return self._constructor(array=-self.array)
+        return self._constructor.from_array(array=-self.array)
 
     @classmethod
     def from_components(
@@ -95,13 +109,13 @@ class VectorR3(BaseModel):
             (VectorR3): new `VectorR3` instance
         """
         return cls(
-            array=np.array(
+            data=np.array(
                 [
                     x,
                     y,
                     z,
                 ]
-            )
+            ).tolist()
         )
 
     def as_pure_quat(self) -> Quaternion:
@@ -121,12 +135,7 @@ class VectorR3(BaseModel):
         Returns:
             (VectorR3): new VectorR3 instance with components set to zero
         """
-        return cls(
-            array=np.zeros(
-                3,
-                dtype=np.float64,
-            ),
-        )
+        return cls(data=(0, 0, 0))
 
     @property
     def _constructor(self) -> Type[VectorR3]:
@@ -143,9 +152,9 @@ class VectorR3(BaseModel):
         Defines the addition operation against another `VectorR3` instance.
         """
         if isinstance(other, VectorR3):
-            return self._constructor(array=self.array + other.array)
+            return self._constructor.from_array(array=self.array + other.array)
         if isinstance(other, (float, int)):
-            return self._constructor(array=self.array + other)
+            return self._constructor.from_array(array=self.array + other)
         if isinstance(other, Iterable):
             return self.__add__(self._constructor(other))
         raise TypeError(
@@ -169,7 +178,7 @@ class VectorR3(BaseModel):
         Defines the multiplication operation against a scalar.
         """
         if isinstance(other, (float, int)):
-            return self._constructor(array=self.array * other)
+            return self._constructor.from_array(array=self.array * other)
         raise TypeError(
             f"Unsupported type for multiplication: {type(other)}. Expected float or int."
         )
@@ -179,7 +188,7 @@ class VectorR3(BaseModel):
         Defines the multiplication operation against a scalar.
         """
         if isinstance(other, (float, int)):
-            return self._constructor(array=other * self.array)
+            return self._constructor.from_array(array=other * self.array)
         raise TypeError(
             f"Unsupported type for multiplication: {type(other)}. Expected float or int."
         )
@@ -189,80 +198,45 @@ class VectorR3(BaseModel):
         Defines the division operation against a scalar.
         """
         if isinstance(other, (float, int)):
-            return self._constructor(array=self.array / other)
+            return self._constructor.from_array(array=self.array / other)
         raise TypeError(
             f"Unsupported type for division: {type(other)}. Expected float or int."
         )
 
-    # def __matmul__(self, other: VectorR3 | Tensor3x3) -> float:
-    #     """
-    #     Defines the dot product operation against another `VectorR3` instance.
-    #     """
-    #     if isinstance(other, VectorR3):
-    #         return self.vector @ other.vector
-    #     if isinstance(other, Tensor3x3):
-    #         return other._constructor(self.vector @ other.matrix)
-    #     if isinstance(other, Iterable):
-    #         other_array = np.array(other)
-    #         if other_array.shape == (3,):
-    #             return self._constructor(self.vector @ other_array)
-    #         if other_array.shape == (3, 3):
-    #             return Tensor3x3(self.vector @ other_array)
-    #     raise TypeError(
-    #         f"Unsupported type for dot product: {type(other)}. Expected VectorR3."
-    #     )
 
-    # def __rmatmul__(self, other: VectorR3 | Tensor3x3) -> float:
-    #     """
-    #     Defines the dot product operation against another `VectorR3` instance.
-    #     """
-    #     if isinstance(other, VectorR3):
-    #         return self._constructor(other.vector @ self.vector)
-    #     if isinstance(other, Tensor3x3):
-    #         return other._constructor(other.matrix @ self.vector)
-    #     raise TypeError(
-    #         f"Unsupported type for dot product: {type(other)}. Expected VectorR3."
-    #     )
-
-
-class Tensor3x3(BaseModel):
-    model_config = ConfigDict(
-        extra="forbid",
-        frozen=True,
-    )
+@immutable
+class Tensor3x3(pyd.BaseModel):
+    model_config = pyd.ConfigDict(extra="forbid")
 
     # Define a 2D array of shape (3, 3) with float64 dtype
-    array: NDArrayFloat64 = pyd.Field(
-        default_factory=lambda: np.array(
-            (
-                (1, 0.0, 0.0),
-                (0.0, 1, 0.0),
-                (0.0, 0.0, 1),
-            )
-        )
-    )
+    data: tuple[
+        tuple[float, float, float],
+        tuple[float, float, float],
+        tuple[float, float, float],
+    ] = np.eye(3).tolist()
 
-    @pyd.field_validator("array")
-    def validate_array(cls, v: NDArrayFloat64) -> NDArrayFloat64:
+    @property
+    def array(self) -> NDArrayFloat64:
+        return np.asarray(self.data)
+
+    @classmethod
+    def from_array(cls, array: NDArrayFloat64) -> Self:
         """
-        Validates that the input array is of shape (3,3,).
+        Creates a new `Tensor3x3` instance from a 3x3 numpy array.
+
+        Returns:
+            (Tensor3x3): New `Tensor3x3` instance.
         """
-        arr = np.asarray(v, dtype=np.float64)
-        if arr.shape != (
-            3,
-            3,
-        ):
-            raise ValueError(f"Array must be of shape (3,3,), got {arr.shape}")
-        return arr
+        return cls(data=array.tolist())
 
     def __add__(self, other: float | int | Tensor3x3) -> Tensor3x3:
         """
         Defines the addition operation against another `Tensor3x3` instance.
         """
         if isinstance(other, Tensor3x3):
-            return self._constructor(array=self.array + other.array)
+            return self._constructor.from_array(array=self.array + other.array)
         if isinstance(other, (float, int)):
-            return self._constructor(array=self.array + other)
+            return self._constructor.from_array(array=self.array + other)
         raise TypeError(
             f"Unsupported type for addition: {type(other)}. Expected Tensor3x3."
         )
@@ -272,9 +246,9 @@ class Tensor3x3(BaseModel):
         Defines the addition operation against another `Tensor3x3` instance.
         """
         if isinstance(other, Tensor3x3):
-            return Tensor3x3(array=other.array + self.array)
+            return Tensor3x3.from_array(array=other.array + self.array)
         if isinstance(other, (float, int)):
-            return Tensor3x3(array=other + self.array)
+            return Tensor3x3.from_array(array=other + self.array)
         raise TypeError(
             f"Unsupported type for addition: {type(other)}. Expected Tensor3x3."
         )
@@ -284,7 +258,7 @@ class Tensor3x3(BaseModel):
         Defines the multiplication operation against a scalar.
         """
         if isinstance(other, (float, int)):
-            return Tensor3x3(array=self.array * other)
+            return Tensor3x3.from_array(array=self.array * other)
         raise TypeError(
             f"Unsupported type for multiplication: {type(other)}. Expected float or int."
         )
@@ -294,7 +268,7 @@ class Tensor3x3(BaseModel):
         Defines the multiplication operation against a scalar.
         """
         if isinstance(other, (float, int)):
-            return Tensor3x3(array=other * self.array)
+            return Tensor3x3.from_array(array=other * self.array)
         raise TypeError(
             f"Unsupported type for multiplication: {type(other)}. Expected float or int."
         )
@@ -306,70 +280,27 @@ class Tensor3x3(BaseModel):
         """
         return type(self)
 
-    # def __matmul__(self, other: VectorR3 | Tensor3x3) -> VectorR3:
-    #     """
-    #     Defines the matrix-vector multiplication operation against a `VectorR3` instance.
-    #     """
-    #     if isinstance(other, VectorR3):
-    #         return other._constructor(self.matrix @ other.vector)
-    #     if isinstance(other, Tensor3x3):
-    #         return self._constructor(self.matrix @ other.matrix)
-    #     if isinstance(other, Iterable):
-    #         other_array = np.array(other)
-    #         if other_array.shape == (3,):
-    #             return VectorR3(self.matrix @ other_array)
-    #         elif other_array.shape == (3, 3):
-    #             return self._constructor(self.matrix @ other_array)
-    #     raise TypeError(
-    #         f"Unsupported type for matrix-vector multiplication: {type(other)}. Expected VectorR3."
-    #     )
 
-    # def __rmatmul__(self, other: VectorR3 | Tensor3x3) -> VectorR3:
-    #     """
-    #     Defines the matrix-vector multiplication operation against a `VectorR3` instance.
-    #     """
-    #     if isinstance(other, VectorR3):
-    #         return other._constructor(other.vector @ self.matrix)
-    #     if isinstance(other, Tensor3x3):
-    #         return self._constructor(other.matrix @ other.matrix)
-    #     if isinstance(other, Iterable):
-    #         other_array = np.array(other)
-    #         if other_array.shape == (3,):
-    #             return VectorR3(other_array @ self.matrix)
-    #         elif other_array.shape == (3, 3):
-    #             return self._constructor(other_array @ self.matrix)
-    #     raise TypeError(
-    #         f"Unsupported type for matrix-vector multiplication: {type(other)}. Expected VectorR3."
-    #     )
-
-
-class Quaternion(BaseModel):
-    model_config = ConfigDict(
-        extra="forbid",
-        frozen=True,
-    )
+@immutable
+class Quaternion(pyd.BaseModel):
+    model_config = pyd.ConfigDict(extra="forbid")
 
     # Define a 1D array of length 4 with float64 dtype
-    array: NDArrayFloat64 = pyd.Field(
-        default_factory=lambda: np.array(
-            (
-                0.0,
-                0.0,
-                0.0,
-                1.0,
-            )
-        )
-    )
+    data: tuple[float, float, float, float] = (0, 0, 0, 1)
 
-    @pyd.field_validator("array")
-    def validate_array(cls, v: NDArrayFloat64) -> NDArrayFloat64:
+    @property
+    def array(self) -> NDArrayFloat64:
+        return np.asarray(self.data)
+
+    @classmethod
+    def from_array(cls, array: NDArrayFloat64) -> Self:
         """
-        Validates that the input array is of shape (4,).
+        Creates a new `Quaternion` instance from a length 4 numpy array.
+
+        Returns:
+            (Quaternion): New `Quaternion` instance.
         """
-        arr = np.asarray(v, dtype=np.float64)
-        if arr.shape != (4,):
-            raise ValueError(f"Array must be of shape (4,), got {arr.shape}")
-        return arr
+        return cls(data=array.tolist())
 
     @property
     def i(self):
@@ -389,7 +320,7 @@ class Quaternion(BaseModel):
 
     @property
     def vector(self):
-        return VectorR3(array=self.array[:3])
+        return VectorR3.from_array(array=self.array[:3])
 
     @property
     def scalar(self):
@@ -404,7 +335,7 @@ class Quaternion(BaseModel):
         Returns:
             (Quaternion): New quaternion object.
         """
-        return cls(array=np.array(list(vector) + [scalar]))
+        return cls.from_array(array=np.array(list(vector) + [scalar]))
 
     def __mul__(self, other: Quaternion | Iterable | float | int) -> Quaternion:
         """
@@ -426,11 +357,11 @@ class Quaternion(BaseModel):
             y = s1 * y2 - x1 * z2 + y1 * s2 + z1 * x2
             z = s1 * z2 + x1 * y2 - y1 * x2 + z1 * s2
 
-            return Quaternion(array=np.array([x, y, z, s]))
+            return Quaternion.from_array(array=np.array([x, y, z, s]))
         if isinstance(other, Iterable):
-            return self * Quaternion(array=np.array(other))
+            return self * Quaternion.from_array(array=np.array(other))
         if isinstance(other, (float, int)):
-            return Quaternion(array=np.array(self.array * other))
+            return Quaternion.from_array(array=np.array(self.array * other))
 
     def __rmul__(self, other: Quaternion | Iterable | float | int) -> Quaternion:
         """
@@ -453,13 +384,13 @@ class Quaternion(BaseModel):
             z = s1 * z2 + x1 * y2 - y1 * x2 + z1 * s2
 
             return Quaternion.from_components(
-                vector=VectorR3(array=np.array([x, y, z])),
+                vector=VectorR3.from_array(array=np.array([x, y, z])),
                 scalar=s,
             )
         if isinstance(other, Iterable):
-            return Quaternion(array=np.array(other)) * self
+            return Quaternion.from_array(array=np.array(other)) * self
         elif isinstance(other, (float, int)):
-            return Quaternion(array=np.array(other * self.array))
+            return Quaternion.from_array(array=np.array(other * self.array))
 
     def as_rotation(self) -> Rotation:
         """
@@ -478,39 +409,31 @@ class Quaternion(BaseModel):
         Returns:
             (Quaternion): New quaternion instance from `Rotation` object.
         """
-        return cls(array=r.as_quat())
+        return cls.from_array(array=r.as_quat())
 
 
-class Rotation(BaseModel):
+@immutable
+class Rotation(pyd.BaseModel):
     """
     Pydantic-compatible wrapper around scipy.spatial.transform.Rotation
     """
 
     # Store the quaternion values directly
-    array: NDArrayFloat64 = pyd.Field(
-        default_factory=lambda: np.array(
-            (
-                0.0,
-                0.0,
-                0.0,
-                1.0,
-            )
-        )
-    )
+    data: tuple[float, float, float, float] = (0, 0, 0, 1)
 
-    @pyd.field_validator("array")
-    def validate_array(cls, v: NDArrayFloat64) -> NDArrayFloat64:
-        """
-        Validates that the input array is of shape (4,).
-        """
-        arr = np.asarray(v, dtype=np.float64)
-        if arr.shape != (4,):
-            raise ValueError(f"Array must be of shape (4,), got {arr.shape}")
-        return arr
+    @property
+    def array(self) -> NDArrayFloat64:
+        return np.asarray(self.data)
 
-    model_config = ConfigDict(
-        frozen=True,
-    )
+    @classmethod
+    def from_array(cls, array: NDArrayFloat64) -> Self:
+        """
+        Creates a new `Rotation` instance from a length 4 numpy array.
+
+        Returns:
+            (Rotation): New `Rotation` instance.
+        """
+        return cls(data=array.tolist())
 
     # Use properties to provide access to the ScipyRotation object
     @property
@@ -522,7 +445,7 @@ class Rotation(BaseModel):
     @classmethod
     def from_rotation(cls, rotation: ScipyRotation):
         """Create from ScipyRotation object"""
-        return cls(array=rotation.as_quat())
+        return cls.from_array(array=rotation.as_quat())
 
     @classmethod
     def from_quat(cls, quat: Iterable[float]):
@@ -596,9 +519,9 @@ class Rotation(BaseModel):
         if isinstance(other, VectorR3):
             # Rotate vector
             rotated = self._rotation.apply(other.array)
-            return other._constructor(array=rotated)
+            return other._constructor.from_array(array=rotated)
         if isinstance(other, (list, tuple, np.ndarray)):
-            return self.__mul__(VectorR3(array=np.array(other)))
+            return self.__mul__(VectorR3.from_array(array=np.array(other)))
         return NotImplemented
 
     def inv(self):
@@ -637,12 +560,14 @@ class Rotation(BaseModel):
 
 
 def _type():
-    print(VectorR3(array=np.array([1.0, 2.0, 3.0])))
-    print(Tensor3x3(array=np.eye(3)))
-    print(
-        Quaternion(array=np.array([1.0, 2.0, 3.0, 4.0]))
-        * Quaternion(array=np.array([1.0, 2.0, 3.0, 4.0]))
+    print(VectorR3.from_array(array=np.array([1.0, 2.0, 3.0])))
+    print(Tensor3x3.from_array(array=np.eye(3)))
+    x = (
+        Quaternion.from_array(array=np.array([0, 1, 0, 0]))
+        * Quaternion(data=(0, 0, 0, 1))
+        * Quaternion.from_array(array=np.array([0, 1, 0, 0]))
     )
+    print(x)
 
 
 if __name__ == "__main__":

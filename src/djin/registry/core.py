@@ -6,11 +6,8 @@ import contextvars
 from typing import (
     Iterator,
     List,
-    Literal,
     Type,
     Self,
-    Annotated,
-    ClassVar,
     TypeVar,
     Generic,
     Optional,
@@ -18,6 +15,7 @@ from typing import (
     get_args,
     Any,
 )
+from djin.base import immutable
 
 __all__ = [
     "set_context_registry",
@@ -41,6 +39,7 @@ def get_named_type_generic(self: pyd.BaseModel, name: str) -> Any:
     return self.__pydantic_generic_metadata__["args"][i]
 
 
+@immutable
 class Registrant(pyd.BaseModel):
     model_config = pyd.ConfigDict(extra="allow", frozen=False)
 
@@ -48,23 +47,24 @@ class Registrant(pyd.BaseModel):
         default_factory=str,
         description="Unique identifier for the registrant",
     )
+    """
+    # @pyd.model_validator(mode="before")
+    # @classmethod
+    # def remove_computed_fields(cls, values: dict) -> dict:
+    #     for p in cls.model_computed_fields:
+    #         if p in values:
+    #             del values[p]
+    #     return values
 
-    @pyd.model_validator(mode="before")
-    @classmethod
-    def remove_computed_fields(cls, values: dict) -> dict:
-        for p in cls.model_computed_fields:
-            if p in values:
-                del values[p]
-        return values
+    # @pyd.computed_field
+    # @property
+    # def type_name(self) -> str:
+    #     return self.type.__name__
 
-    @pyd.computed_field
-    @property
-    def type_name(self) -> str:
-        return self.type.__name__
-
-    @property
-    def type(self) -> Type[Self]:
-        return type(self)
+    # @property
+    # def type(self) -> Type[Self]:
+    #     return type(self)
+"""
 
     def register(self, registry: Registry | None = None) -> Self:
         if registry is None:
@@ -83,10 +83,14 @@ class Registrant(pyd.BaseModel):
 T = TypeVar("T", bound=Registrant)
 
 
+@immutable
 class Registry(Registrant, Generic[T]):
-    model_config = pyd.ConfigDict(extra="forbid", frozen=False)
+    model_config = pyd.ConfigDict(extra="forbid")
 
-    registrants: dict[str, T] = {}
+    registrants: dict[str, T] = pyd.Field(
+        default_factory=dict,
+        description="Dictionary of registrants by their unique identifier",
+    )
 
     @pyd.validate_call
     def get_registrant(self, id: str) -> T | None:
@@ -229,12 +233,10 @@ def _test():
     # Example usage
 
     class A(Registrant):
-        _registry_type: ClassVar[Literal["A"]] = "A"
         data: List[str]
         ref: Optional[Reference[A]] = None
 
     class B(Registrant):
-        _registry_type: ClassVar[Literal["B"]] = "B"
         data: List[str]
 
     # Create a specialized registry for your custom type
@@ -273,11 +275,13 @@ def _test():
         custom_item.register()  # Explicitly register to context registry
         # Retrieve it from the registry
         retrieved = my_registry.get_registrant("custom1")
-        # if retrieved:
-        #     print(retrieved.data)  # Outputs: ['a', 'b', 'c']
+        if retrieved:
+            print(retrieved.data)  # Outputs: ['a', 'b', 'c']
+        active_registry = get_context_registry(Registry[Registrant])
+        assert active_registry is not None
         print(
             "model registry:\n",
-            get_context_registry(Registry[Registrant]).model_dump_json(indent=4),
+            active_registry.model_dump_json(indent=4),
         )
 
 

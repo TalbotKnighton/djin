@@ -1,25 +1,25 @@
-import contextvars
-from typing import Optional, Generic, Type, TypeVar, Union
-import typing
-
 import pydantic as pyd
-from djin.registry.core import Registry, Registrant
-
-T = TypeVar("T", bound=Registrant)
+from djin.base import immutable, mutable
 
 
-current_registry = contextvars.ContextVar[Optional[Registry]](
-    "current_registry",
-    default=None,
-)
+class Registrant(pyd.BaseModel):
+    model_config = pyd.ConfigDict(frozen=True)
+    names: list[str] = pyd.Field(
+        default_factory=list,
+        description="A list of registrant names",
+        frozen=True,
+    )
 
 
-class MyClass(Registrant):
-    pass
+class Registry(pyd.BaseModel):
+    model_config = pyd.ConfigDict(frozen=True)
+    elements: dict[str, int] = pyd.Field(
+        default_factory=dict,
+        description="A dictionary mapping strings to integers",
+        frozen=True,
+    )
 
 
-x = Reference[MyClass](id="123")
-print(x.get())
-# print(x.model_dump_json())
-# y = Reference[MyClass].model_validate_json(x.model_dump_json())
-# print(y.get())
+r = Registry()
+r.elements["a"] = 5  # This should raise an error since the model is immutable
+print(r)
