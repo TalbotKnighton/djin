@@ -12,6 +12,7 @@ from typing import (
     Iterator,
     List,
     Literal,
+    Protocol,
     Tuple,
     Type,
     Self,
@@ -23,6 +24,7 @@ from typing import (
     get_args,
     Any,
     overload,
+    runtime_checkable,
 )
 from djin.base import immutable, mutable
 
@@ -98,9 +100,6 @@ def validate_against_named_generic(model: pyd.BaseModel, obj: Any, typevar: Type
         breakpoint()
 
 
-RT = TypeVar("RT")
-
-
 # @mutable
 # class Contents(pyd.BaseModel, Generic[RT]):
 #     contents: Optional[RT] = None
@@ -128,41 +127,56 @@ RT = TypeVar("RT")
 #     if obj is None:
 #         raise
 #     return obj
-ID = str | int
+
+
+def to_int_if_possible(i: Any):
+    try:
+        return int(i)
+    except ValueError:
+        return str(i)
+
+
+ID = Annotated[int | str, pyd.BeforeValidator(lambda s: to_int_if_possible(s))]
+
+
+class Stowable(pyd.BaseModel):
+    """Mixin class that makes a pydantic model packable into a Container."""
+
+    # def contain(self, id: ID) -> Container[Packable]:
+    #     """
+    #     Pack this model into a container with the given ID.
+
+    #     Args:
+    #         id: The ID for the container
+
+    #     Returns:
+    #         A Container instance containing this model
+    #     """
+    #     # We need to use type(self) to make sure the correct type is used in Container
+    #     return Container[type(self)](id=id)  # type: ignore
+
+    def stow(
+        self,
+        id: Optional[ID] = None,
+        warehouse: Optional[Warehouse] = None,
+    ) -> Container[Self]:
+        return get_warehouse(warehouse=warehouse).pack(id=id, contents=self)
+
+
+RT = TypeVar("RT")
 
 
 @mutable
-class Container(pyd.BaseModel, Generic[RT]):
+class Container(Stowable, Generic[RT]):
     model_config = pyd.ConfigDict(extra="forbid")
     type: Literal["container"] = "container"
-    id: ID = pyd.Field(
-        description="Unique identifier for the container",
-    )
-    contents: Optional[RT] = None
-
-    # @pyd.model_validator(mode="before")
-    # @classmethod
-    # def remove_properties(cls, values: dict) -> dict:
-    #     for p in cls.model_computed_fields:
-    #         if p in values:
-    #             del values[p]
-    #     return values
-
-    # def get_contents(self):
-    #     if self.contents is None:
-    #         raise
-    #     else:
-    #         return self.contents
-    # def _stow_to_context_space(self) -> Self:
-    #     context_registry = get_context_registry(t=type(self))  # type: ignore
-    #     if context_registry is not None:
-    #         context_registry.(self)
-    #     return self
+    id: ID
+    contents: RT
 
 
-def to_int(obj: str | int) -> int:
+def to_int(i: Any):
     try:
-        return int(obj)
+        return int(i)
     except ValueError:
         return -1
 
@@ -174,7 +188,10 @@ class Warehouse(Container, Generic[RT]):
     )
 
     def get_next_id(self) -> int:
-        return int(np.max([to_int(k) for k in self.contents.keys()])) + 1
+        if len(self.contents.keys()) > 0:
+            return int(np.max([to_int(k) for k in self.contents.keys()])) + 1
+        else:
+            return 0
 
     @pyd.validate_call(validate_return=True)
     def put(
@@ -195,8 +212,8 @@ class Warehouse(Container, Generic[RT]):
         return container
 
     @pyd.validate_call(validate_return=True)
-    def get_optional(self, id: ID) -> Optional[Container[RT]]:
-        return self.contents.get(id, None)
+    def get_optional(self, id: Optional[ID]) -> Optional[Container[RT]]:
+        return self.contents.get(id, None) if id is not None else None
 
     @pyd.validate_call(validate_return=True)
     def get(self, id: ID) -> Container[RT]:
@@ -208,8 +225,8 @@ class Warehouse(Container, Generic[RT]):
     @pyd.validate_call(validate_return=True)
     def pack(
         self,
+        contents: RT,
         id: Optional[ID] = None,
-        contents: Optional[RT] = None,
     ):
         return self.put(
             container=Container[RT](
@@ -219,8 +236,8 @@ class Warehouse(Container, Generic[RT]):
         )
 
     @pyd.validate_call(validate_return=True)
-    def unpack_optional(self, id: ID) -> Optional[RT]:
-        return self.get(id).contents
+    def unpack_optional(self, id: Optional[ID]) -> Optional[RT]:
+        return self.get(id).contents if id is not None else None
 
     @pyd.validate_call(validate_return=True)
     def unpack(self, id: ID) -> RT:
@@ -229,20 +246,24 @@ class Warehouse(Container, Generic[RT]):
             raise ValueError(f"You tried to unpack an empty container, {id = }")
         return contents
 
+    @contextmanager
+    def set_context(self):
+        return set_warehouse(warehouse=self)
+
 
 # class TypedID(pyd.BaseModel, Generic[RT]):
 #     """"""
 
 
 class _test1:
-    class A(pyd.BaseModel):
+    class A(Stowable):
         my_type: Literal["a"] = "a"
 
-    class B(pyd.BaseModel):
+    class B(Stowable):
         my_type: Literal["b"] = "b"
         subtype: Literal["1"] = "1"
 
-    class C(pyd.BaseModel):
+    class C(Stowable):
         my_type: Literal["b"] = "b"
         subtype: Literal["2"] = "2"
 
@@ -292,69 +313,72 @@ if __name__ == "__main__":
 @immutable
 class Ref(pyd.BaseModel, Generic[RT]):
     type_discriminator: Literal["reference"] = "reference"
-    id: ID
+    id: Optional[ID]
 
     @property
-    def type(self) -> Type[RT]:
+    def type(self) -> Optional[Type[RT]]:
         # return self.__pydantic_generic_metadata__["args"][0]
-        return get_named_type_generic(self, RT.__name__)
+        return (
+            get_named_type_generic(self, RT.__name__) if self.id is not None else None
+        )
 
     @pyd.validate_call(
         validate_return=True
     )  # does not work yet https://github.com/pydantic/pydantic/issues/7796
     def get_optional(
         self,
-        warehouse: Warehouse,
+        warehouse: Optional[Warehouse] = None,
     ) -> Optional[Container[RT]]:
-        return_val = warehouse.get_optional(id=self.id)
-        # TODO clean this up.  What am I checking?  Container type or container contents?
-        if return_val is not None and return_val.contents is not None:
+        container = get_warehouse(warehouse=warehouse).get_optional(id=self.id)
+        if container is not None and container.contents is not None:
             validate_against_named_generic(
                 model=self,
-                obj=return_val.contents,
+                obj=container.contents,
                 typevar=RT,
-            )
-        return return_val
+            )  # TODO clean this up.  What am I checking?  Container type or container contents?
+        return container
 
     @pyd.validate_call(
         validate_return=True
     )  # does not work yet https://github.com/pydantic/pydantic/issues/7796
     def get(
         self,
-        warehouse: Warehouse,
+        warehouse: Optional[Warehouse] = None,
     ) -> Container[RT]:
-        return_val = self.get_optional(warehouse=warehouse)
-        if return_val is None:
-            raise ValueError(f"No Container found for id {self.id}")
-        return return_val
+        container = self.get_optional(warehouse=warehouse)
+        if container is None:
+            raise ValueError("Did not find referenced container")
+        return container
 
     @pyd.validate_call(
         validate_return=True
     )  # does not work yet https://github.com/pydantic/pydantic/issues/7796
     def unpack_optional(
         self,
-        warehouse: Warehouse,
+        warehouse: Optional[Warehouse] = None,
     ) -> Optional[RT]:
-        return_val = warehouse.unpack_optional(id=self.id)
-        if return_val is not None:
+        contents = get_warehouse(warehouse=warehouse).unpack_optional(id=self.id)
+        if contents is not None:
             validate_against_named_generic(
                 model=self,
-                obj=return_val,
+                obj=contents,
                 typevar=RT,
             )
-        return return_val
+        return contents
 
     @pyd.validate_call(
         validate_return=True
     )  # does not work yet https://github.com/pydantic/pydantic/issues/7796
     def unpack(
         self,
-        warehouse: Warehouse,
+        warehouse: Optional[Warehouse] = None,
     ) -> RT:
-        return_val = self.unpack_optional(warehouse=warehouse)
-        if return_val is None:
-            raise ValueError(f"No instance found for id {self.id}")
-        return return_val
+        contents = self.unpack_optional(warehouse=warehouse)
+        if contents is None:
+            raise ValueError(
+                f"No contents found in container id {self.id} of type {get_origin(RT)}"
+            )
+        return contents
 
 
 def ref(type: Type[RT], id: str) -> Ref[RT]:
@@ -362,20 +386,20 @@ def ref(type: Type[RT], id: str) -> Ref[RT]:
 
 
 class _test2:
-    class A(pyd.BaseModel):
+    class A(Stowable):
         mytype: Literal["a"] = "a"
         ref: Ref[_test2.B]
 
-    class B(pyd.BaseModel):
+    class B(Stowable):
         mytype: Literal["b"] = "b"
         ref: Ref[_test2.A]
 
-    Universe = Annotated[
+    Catalogue = Annotated[
         A | B,
         pyd.Field(discriminator="mytype"),
     ]
 
-    UW = Warehouse[Universe]
+    UW = Warehouse[Catalogue]
 
     @classmethod
     def test(cls):
@@ -390,6 +414,87 @@ class _test2:
 
 if __name__ == "__main__":
     _test2.test()
+
+
+_context_warehouse = contextvars.ContextVar[Warehouse | None](
+    "_context_warehouse",
+    default=None,
+)
+
+
+def set_warehouse(warehouse: RT) -> Iterator[RT]:
+    """
+    Context manager for setting the current registry.
+
+    Args:
+        registry: The registry to use within this context
+
+    Yields:
+        (Registry[T]): The registry that was set for the context
+    """
+    if not isinstance(warehouse, Warehouse):
+        raise TypeError(f"Expected Registry instance, got {type(warehouse).__name__}")
+
+    token = _context_warehouse.set(warehouse)
+    try:
+        yield warehouse
+    finally:
+        _context_warehouse.reset(token)
+
+
+def get_warehouse(warehouse: Optional[Warehouse] = None) -> Warehouse:
+    """
+    Get the current warehouse from the context.
+
+    Returns:
+        (Warehouse[RT]): The current warehouse or None if no registry is set
+    #"""
+    if warehouse:
+        wh = warehouse
+    else:
+        wh = _context_warehouse.get()
+        if wh is None:
+            raise RuntimeError("You must set a context warehouse if not passing one in")
+    return wh
+
+
+_context_container = contextvars.ContextVar[Container | None](
+    "_context_container",
+    default=None,
+)
+
+
+@contextmanager
+def set_container(container: RT) -> Iterator[RT]:
+    """
+    Context manager for setting the current registry.
+
+    Args:
+        registry: The registry to use within this context
+
+    Yields:
+        (Registry[RT]): The registry that was set for the context
+    """
+    if not isinstance(container, Container):
+        raise TypeError(f"Expected Container instance, got {type(container).__name__}")
+
+    token = _context_container.set(container)
+    try:
+        yield container
+    finally:
+        _context_container.reset(token)
+
+
+def get_container(t: Type[RT]) -> Warehouse[RT] | None:
+    """
+    Get the current registry from the context.
+
+    Returns:
+        The current registry or None if no registry is set
+    """
+    if not issubclass(t, Warehouse):
+        raise TypeError(f"Type {t} is not a subclass of Warehouse")
+    return _context_warehouse.get()
 
 
 # T = TypeVar("T", bound=Registrant)

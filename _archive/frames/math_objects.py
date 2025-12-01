@@ -496,7 +496,7 @@ class Pose(BaseModel):
         from frames import Frame
 
         return (
-            Frame(parent=from_frame, pose=self)
+            Frame(parent_id=from_frame, pose=self)
             .change_parent_frame(new_frame=to_frame)
             .pose
         )

@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any, Literal, TypeVar, Generic, Optional, Self, TYPE_CHECKING
 from djin.math_objects.frameless import VectorR3, Quaternion
 from djin.base import pydantic as pyd, immutable
+from djin.containers.core import Warehouse, get_warehouse
 
 T = TypeVar("T")
 
@@ -29,14 +30,16 @@ class Transformable3D(pyd.BaseModel, Generic[T]):
     def to_parent_frame(
         self,
         starting_frame: Optional[Frame],
+        warehouse: Optional[Warehouse] = None,
     ) -> Self:
         if starting_frame is None:
             return self.model_copy(deep=True)
-        return type(self)(
-            components=self._to_parent_frame_components(
-                starting_frame=starting_frame,
+        with get_warehouse(warehouse=warehouse).set_context():
+            return type(self)(
+                components=self._to_parent_frame_components(
+                    starting_frame=starting_frame,
+                )
             )
-        )
 
     def _to_parent_frame_components(
         self,
@@ -55,27 +58,32 @@ class Transformable3D(pyd.BaseModel, Generic[T]):
         self,
         starting_frame: Optional[Frame],
         target_frame: Optional[Frame],
+        warehouse: Optional[Warehouse] = None,
     ) -> Self:
         self_in_ground_frame = self.to_ground_frame(starting_frame=starting_frame)
         if target_frame is None:
             return self_in_ground_frame
         else:
-            return type(self)(
-                components=self._to_target_frame_components(
-                    starting_frame=target_frame,
-                    target_frame=target_frame,
+            with get_warehouse(warehouse=warehouse).set_context():
+                return type(self)(
+                    components=self._to_target_frame_components(
+                        starting_frame=target_frame,
+                        target_frame=target_frame,
+                    )
                 )
-            )
 
     def to_ground_frame(
         self,
         starting_frame: Optional[Frame],
+        warehouse: Optional[Warehouse] = None,
     ) -> Self:
         if starting_frame is None:
             return self.model_copy(deep=True)
         else:
             up_one_level = self.to_parent_frame(starting_frame=starting_frame)
-            return up_one_level.to_ground_frame(starting_frame=starting_frame.parent)
+            with get_warehouse(warehouse=warehouse).set_context():
+                pp = starting_frame.parent.unpack()
+            return up_one_level.to_ground_frame(starting_frame=pp)
 
 
 class Vector3D(Transformable3D[VectorR3]):

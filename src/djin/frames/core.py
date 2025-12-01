@@ -3,7 +3,7 @@ from contextvars import ContextVar
 from typing import Any, Optional, Self
 import pydantic as pyd
 from typing_extensions import Literal
-from djin.containers.core import ID, Container, Ref, Warehouse
+from djin.containers.core import ID, Stowable, Ref, Warehouse, get_warehouse
 from djin.math_objects.framed import Pose3D
 from djin.base import immutable
 
@@ -15,86 +15,64 @@ __all__ = [
 
 
 @immutable
-class Frame(pyd.BaseModel):
-    type_discriminator: Literal["Frame"] = "Frame"
+class Frame(Stowable):
+    type: Literal["Frame"] = "Frame"
     pose: Pose3D
     parent_id: Optional[ID] = None  # Parent frame
 
     @property
-    def parent_ref(self) -> Optional[Ref[Self]]:
-        return None if self.parent_id is None else Ref[Self](id=self.parent_id)
-
-    @property
-    def get_parent(self) -> Container[Self]:
-        
-    # def get_parent_optional(
-    #     self,
-    #     warehouse: Warehouse[Frame | Any],
-    # ) -> Optional[Container[Self]]:
-    #     if self.parent_ref is None:
-    #         return None
-    #     else:
-    #         return self.parent_ref.get_optional(warehouse=warehouse)
-
-    # def unpack_parent_optional(
-    #     self, warehouse: Warehouse[Self | Any]
-    # ) -> Optional[Frame]:
-    #     parent_container = self.get_parent_optional(warehouse=warehouse)
-    #     if parent_container is None:
-    #         return None
-    #     else:
-    #         return parent_container.contents
+    def parent(self) -> Ref[Frame]:
+        return Ref[Frame](id=self.parent_id)
 
     def to_parent_frame(
         self,
+        warehouse: Optional[Warehouse] = None,
     ) -> Self:
-        r = self.parent_ref
-        if r is None:
-            return self.model_copy(deep=True)
-        else:
-            parent = r.unpack(warehouse=None)
-            new_ref = parent.parent_ref
-            return type(self)(
-                pose=self.pose.to_parent_frame(starting_frame=self),
-                parent_id=getattr(new_ref, "id", None),
-            )
+        with get_warehouse(warehouse).set_context():
+            if self.parent_id is None:
+                return self.model_copy(deep=True)
+            else:
+                parent = self.parent.unpack()
+                return type(self)(
+                    pose=self.pose.to_parent_frame(starting_frame=self),
+                    parent_id=getattr(parent.parent, "id", None),
+                )
 
     def to_ground_frame(
         self,
+        warehouse: Optional[Warehouse] = None,
     ) -> Self:
-        r = self.parent_ref
-        if r is None:
-            return self.model_copy(deep=True)
-        else:
-            parent = r.unpack(warehouse=None)
-            if parent is None:
+        with get_warehouse(warehouse).set_context():
+            if self.parent_id is None:
                 return self.model_copy(deep=True)
             else:
-                return type(self)(
-                    pose=self.pose.to_ground_frame(starting_frame=self),
-                    parent_id=None,
-                )
+                parent = self.parent.unpack()
+                if parent is None:
+                    return self.model_copy(deep=True)
+                else:
+                    return type(self)(
+                        pose=self.pose.to_ground_frame(starting_frame=self),
+                        parent_id=None,
+                    )
 
     def to_target_frame(
         self,
-        target_frame_id: ID,
+        target_frame: ID,
+        warehouse: Optional[Warehouse] = None,
     ) -> Self:
-        r = self.parent_ref
-        if r is None:
-            return self.model_copy(deep=True)
-        else:
-            parent = r.unpack(warehouse=None)
-            if parent is None:
+        with get_warehouse(warehouse).set_context() as wh:
+            if self.parent_id is None:
                 return self.model_copy(deep=True)
             else:
-                target_frame_container = Ref[Self](id=target_frame_id).get(
-                    warehouse=None
-                )  # TODO real warehouse
-                target_frame = target_frame_container.contents
-                return type(self)(
-                    pose=self.pose.to_target_frame(
-                        starting_frame=self,
-                        target_frame=target_frame,
-                    ),
-                    parent_id=target_frame_container.id,
-                )
+                parent = self.parent.unpack()
+                if parent is None:
+                    return self.model_copy(deep=True)
+                else:
+                    tf = Ref[Frame](id=target_frame).get()
+                    return type(self)(
+                        pose=self.pose.to_target_frame(
+                            starting_frame=self,
+                            target_frame=tf.contents,
+                        ),
+                        parent_id=tf.id,
+                    )

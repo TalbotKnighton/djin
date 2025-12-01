@@ -262,7 +262,7 @@ class DynamicFrame(Frame):
         at instantiation is `None`.
         """
         if self.velocity is None:
-            self.velocity = FrameVelocity.fixed_to_frame(frame=self.parent)
+            self.velocity = FrameVelocity.fixed_to_frame(frame=self.parent_id)
 
     def set_velocity(
         self,
