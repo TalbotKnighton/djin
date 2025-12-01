@@ -292,7 +292,7 @@ if __name__ == "__main__":
 @immutable
 class Ref(pyd.BaseModel, Generic[RT]):
     type_discriminator: Literal["reference"] = "reference"
-    id: str
+    id: ID
 
     @property
     def type(self) -> Type[RT]:
