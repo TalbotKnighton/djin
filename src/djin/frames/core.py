@@ -8,10 +8,14 @@ from djin.base import immutable
 
 current_frame_registry = ContextVar("frame_registry", default=None)
 
+__all__ = [
+    "Frame",
+]
+
 
 @immutable
 class Frame(pyd.BaseModel):
-    type_name: Literal["Frame"] = "Frame"
+    type_discriminator: Literal["Frame"] = "Frame"
     pose: Pose3D
     parent: Optional[Frame] = None  # Parent frame
 
@@ -49,5 +53,5 @@ class Frame(pyd.BaseModel):
                     starting_frame=self,
                     target_frame=target_frame,
                 ),
-                parent=None,
+                parent=target_frame,
             )

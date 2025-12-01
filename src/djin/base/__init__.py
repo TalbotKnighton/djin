@@ -10,10 +10,10 @@ class MutableBaseModel(pydantic.BaseModel):
     model_config = pydantic.ConfigDict(frozen=False)
 
 
-T = TypeVar("T", bound=pydantic.BaseModel)
+_T = TypeVar("_T", bound=pydantic.BaseModel)
 
 
-def _update_config(cls: Type[T], frozen_value: bool) -> Type[T]:
+def _update_config(cls: Type[_T], frozen_value: bool) -> Type[_T]:
     """
     Helper function to update the model_config with a frozen value.
 
@@ -31,7 +31,7 @@ def _update_config(cls: Type[T], frozen_value: bool) -> Type[T]:
     return cls
 
 
-def mutable(cls: Type[T]) -> Type[T]:
+def mutable(cls: Type[_T]) -> Type[_T]:
     """
     Decorator to make a Pydantic model mutable.
 
@@ -47,7 +47,7 @@ def mutable(cls: Type[T]) -> Type[T]:
     return _update_config(cls, frozen_value=False)
 
 
-def immutable(cls: Type[T]) -> Type[T]:
+def immutable(cls: Type[_T]) -> Type[_T]:
     """
     Decorator to make a Pydantic model immutable.
 

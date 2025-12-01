@@ -10,7 +10,7 @@ from dataclasses import dataclass
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from djin.registry import CanRegister, Registry, default_registry
+from djin.containers import CanRegister, Registry, default_registry
 
 Number = float | int
 from typing import Optional, Union, ClassVar
@@ -188,7 +188,7 @@ class Frame(CanRegister):
         Frame:
             {self.pose.position = }
             self.pose.rotation.as_matrix() = 
-                {str(self.pose.rotation.as_matrix()).replace(newline, newline + '                ')}
+                {str(self.pose.rotation.as_matrix()).replace(newline, newline + "                ")}
             {self.parent = }
         """
 
