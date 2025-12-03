@@ -282,6 +282,112 @@ class Tensor3x3(pyd.BaseModel):
 
 
 @immutable
+class Tensor3x3Symmetric(pyd.BaseModel):
+    model_config = pyd.ConfigDict(extra="forbid")
+
+    xx: float
+    yy: float
+    zz: float
+    xy: float
+    zx: float
+    yz: float
+
+    @property
+    def yx(self) -> float:
+        return self.xy
+
+    @property
+    def xz(self) -> float:
+        return self.zx
+
+    @property
+    def zy(self) -> float:
+        return self.yz
+
+    @property
+    def array(self) -> NDArrayFloat64:
+        return np.asarray(
+            [
+                [self.xx, self.xy, self.xz],
+                [self.yx, self.yy, self.yz],
+                [self.zx, self.yz, self.zz],
+            ]
+        )
+
+    @classmethod
+    def from_array(
+        cls,
+        array: NDArrayFloat64,
+    ) -> Self:
+        """
+        Creates a new `Tensor3x3Symmetric` instance from a 3x3 numpy array.
+
+        Returns:
+            (Tensor3x3Symmetric): New `Tensor3x3Symmetric` instance.
+        """
+        # TODO verify all close
+        return cls(
+            xx=array[0, 0],
+            yy=array[1, 1],
+            zz=array[2, 2],
+            xy=array[0, 1],
+            zx=array[2, 0],
+            yz=array[1, 2],
+        )
+
+    def __add__(self, other: float | int | Tensor3x3Symmetric) -> Tensor3x3Symmetric:
+        """
+        Defines the addition operation against another `Tensor3x3` instance.
+        """
+        if isinstance(other, Tensor3x3Symmetric):
+            return self._constructor.from_array(array=self.array + other.array)
+        if isinstance(other, (float, int)):
+            return self._constructor.from_array(array=self.array + other)
+        raise TypeError(
+            f"Unsupported type for addition: {type(other)}. Expected Tensor3x3."
+        )
+
+    def __radd__(self, other: float | int | Tensor3x3Symmetric) -> Tensor3x3Symmetric:
+        """
+        Defines the addition operation against another `Tensor3x3` instance.
+        """
+        if isinstance(other, Tensor3x3Symmetric):
+            return Tensor3x3Symmetric.from_array(array=other.array + self.array)
+        if isinstance(other, (float, int)):
+            return Tensor3x3Symmetric.from_array(array=other + self.array)
+        raise TypeError(
+            f"Unsupported type for addition: {type(other)}. Expected Tensor3x3."
+        )
+
+    def __mul__(self, other: float | int) -> Tensor3x3Symmetric:
+        """
+        Defines the multiplication operation against a scalar.
+        """
+        if isinstance(other, (float, int)):
+            return Tensor3x3Symmetric.from_array(array=self.array * other)
+        raise TypeError(
+            f"Unsupported type for multiplication: {type(other)}. Expected float or int."
+        )
+
+    def __rmul__(self, other: float | int) -> Tensor3x3Symmetric:
+        """
+        Defines the multiplication operation against a scalar.
+        """
+        if isinstance(other, (float, int)):
+            return Tensor3x3Symmetric.from_array(array=other * self.array)
+        raise TypeError(
+            f"Unsupported type for multiplication: {type(other)}. Expected float or int."
+        )
+
+    @property
+    def _constructor(self) -> Type[Tensor3x3Symmetric]:
+        """
+        Returns the constructor for the class. This is used to create new instances of the class.
+        """
+        return type(self)
+
+
+@immutable
 class Quaternion(pyd.BaseModel):
     model_config = pyd.ConfigDict(extra="forbid")
 

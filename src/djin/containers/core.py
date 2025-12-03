@@ -139,21 +139,12 @@ def to_int_if_possible(i: Any):
 ID = Annotated[int | str, pyd.BeforeValidator(lambda s: to_int_if_possible(s))]
 
 
-class Stowable(pyd.BaseModel):
+def is_id(t: Any) -> bool:
+    return isinstance(t, (int, str))
+
+
+class Stowable:
     """Mixin class that makes a pydantic model packable into a Container."""
-
-    # def contain(self, id: ID) -> Container[Packable]:
-    #     """
-    #     Pack this model into a container with the given ID.
-
-    #     Args:
-    #         id: The ID for the container
-
-    #     Returns:
-    #         A Container instance containing this model
-    #     """
-    #     # We need to use type(self) to make sure the correct type is used in Container
-    #     return Container[type(self)](id=id)  # type: ignore
 
     def stow(
         self,
@@ -167,7 +158,7 @@ RT = TypeVar("RT")
 
 
 @mutable
-class Container(Stowable, Generic[RT]):
+class Container(pyd.BaseModel, Stowable, Generic[RT]):
     model_config = pyd.ConfigDict(extra="forbid")
     type: Literal["container"] = "container"
     id: ID
@@ -256,14 +247,14 @@ class Warehouse(Container, Generic[RT]):
 
 
 class _test1:
-    class A(Stowable):
+    class A(pyd.BaseModel, Stowable):
         my_type: Literal["a"] = "a"
 
-    class B(Stowable):
+    class B(pyd.BaseModel, Stowable):
         my_type: Literal["b"] = "b"
         subtype: Literal["1"] = "1"
 
-    class C(Stowable):
+    class C(pyd.BaseModel, Stowable):
         my_type: Literal["b"] = "b"
         subtype: Literal["2"] = "2"
 
@@ -386,11 +377,11 @@ def ref(type: Type[RT], id: str) -> Ref[RT]:
 
 
 class _test2:
-    class A(Stowable):
+    class A(pyd.BaseModel, Stowable):
         mytype: Literal["a"] = "a"
         ref: Ref[_test2.B]
 
-    class B(Stowable):
+    class B(pyd.BaseModel, Stowable):
         mytype: Literal["b"] = "b"
         ref: Ref[_test2.A]
 

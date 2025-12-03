@@ -2,25 +2,25 @@ from __future__ import annotations
 import pydantic as pyd
 from typing import Annotated, Literal
 
-from djin.containers.core import Ref, Warehouse, ref
+from djin.containers.core import Ref, Warehouse, ref, Stowable
 
 
-class A(pyd.BaseModel):
+class A(Stowable):
     mytype: Literal["a"] = "a"
     ref: Ref[B]
 
 
-class B(pyd.BaseModel):
+class B(Stowable):
     mytype: Literal["b"] = "b"
     ref: Ref[A]
 
 
-Universe = Annotated[
+Catalog = Annotated[
     A | B,
     pyd.Field(discriminator="mytype"),
 ]
 
-UW = Warehouse[Universe]
+UW = Warehouse[Catalog]
 UW.model_rebuild()
 uw = UW(id="universal_warehouse")
 a = A(ref=ref(type=B, id="b"))

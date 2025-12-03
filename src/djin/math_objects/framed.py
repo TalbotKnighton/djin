@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+from typing_extensions import deprecated
 from typing import Any, Literal, TypeVar, Generic, Optional, Self, TYPE_CHECKING
 from djin.math_objects.frameless import VectorR3, Quaternion
 from djin.base import pydantic as pyd, immutable
-from djin.containers.core import Warehouse, get_warehouse
+from djin.containers.core import ID, Container, Ref, Warehouse, get_warehouse
 
 T = TypeVar("T")
 
@@ -29,61 +30,92 @@ class Transformable3D(pyd.BaseModel, Generic[T]):
 
     def to_parent_frame(
         self,
-        starting_frame: Optional[Frame],
+        starting_frame: Optional[ID | Container[Frame]],
+        warehouse: Optional[Warehouse] = None,
+    ) -> Self:
+        if starting_frame is None:  # Ground is parent of all frames
+            return self.model_copy(deep=True)
+        else:
+            return self.model_copy(
+                update={
+                    "components": self._to_parent_frame_components(
+                        starting_frame=(
+                            Ref[Frame](id=starting_frame).get()
+                            if not isinstance(starting_frame, Container)
+                            else starting_frame
+                        ),
+                        warehouse=warehouse,
+                    )
+                },
+                deep=True,
+            )
+
+    def to_ground_frame(
+        self,
+        starting_frame: Optional[ID | Container[Frame]],
         warehouse: Optional[Warehouse] = None,
     ) -> Self:
         if starting_frame is None:
             return self.model_copy(deep=True)
-        with get_warehouse(warehouse=warehouse).set_context():
-            return type(self)(
-                components=self._to_parent_frame_components(
-                    starting_frame=starting_frame,
-                )
+        else:
+            parent = (
+                starting_frame.contents.parent.get(warehouse=warehouse)
+                if isinstance(starting_frame, Container)
+                else Ref[Frame](id=starting_frame).get(warehouse=warehouse)
+            )
+            return self.to_parent_frame(
+                starting_frame=starting_frame,
+                warehouse=warehouse,
+            ).to_ground_frame(
+                starting_frame=parent,
+                warehouse=warehouse,
+            )
+
+    def to_target_frame(
+        self,
+        starting_frame: Optional[ID | Container[Frame]],
+        target_frame: Optional[ID | Container[Frame]],
+        warehouse: Optional[Warehouse] = None,
+    ) -> Self:
+        if target_frame is None:
+            return self.to_ground_frame(
+                starting_frame=starting_frame,
+                warehouse=warehouse,
+            )
+        else:
+            return self.model_copy(
+                update={
+                    "components": self._to_target_frame_components(
+                        starting_frame=(
+                            Ref[Frame](id=starting_frame).get()
+                            if not isinstance(starting_frame, Container)
+                            else starting_frame
+                        ),
+                        target_frame=(
+                            Ref[Frame](id=target_frame).get()
+                            if not isinstance(target_frame, Container)
+                            else target_frame
+                        ),
+                        warehouse=warehouse,
+                    )
+                },
+                deep=True,
             )
 
     def _to_parent_frame_components(
         self,
-        starting_frame: Frame,
+        starting_frame: Container[Frame],
+        warehouse: Optional[Warehouse] = None,
     ) -> T:
         raise NotImplementedError()
 
     def _to_target_frame_components(
         self,
-        starting_frame: Frame,
-        target_frame: Frame,
+        starting_frame: Container[Frame],
+        target_frame: Container[Frame],
+        warehouse: Optional[Warehouse] = None,
     ) -> T:
         raise NotImplementedError()
-
-    def to_target_frame(
-        self,
-        starting_frame: Optional[Frame],
-        target_frame: Optional[Frame],
-        warehouse: Optional[Warehouse] = None,
-    ) -> Self:
-        self_in_ground_frame = self.to_ground_frame(starting_frame=starting_frame)
-        if target_frame is None:
-            return self_in_ground_frame
-        else:
-            with get_warehouse(warehouse=warehouse).set_context():
-                return type(self)(
-                    components=self._to_target_frame_components(
-                        starting_frame=target_frame,
-                        target_frame=target_frame,
-                    )
-                )
-
-    def to_ground_frame(
-        self,
-        starting_frame: Optional[Frame],
-        warehouse: Optional[Warehouse] = None,
-    ) -> Self:
-        if starting_frame is None:
-            return self.model_copy(deep=True)
-        else:
-            up_one_level = self.to_parent_frame(starting_frame=starting_frame)
-            with get_warehouse(warehouse=warehouse).set_context():
-                pp = starting_frame.parent.unpack()
-            return up_one_level.to_ground_frame(starting_frame=pp)
 
 
 class Vector3D(Transformable3D[VectorR3]):
@@ -91,20 +123,24 @@ class Vector3D(Transformable3D[VectorR3]):
 
     def _to_parent_frame_components(
         self,
-        starting_frame: Frame,
+        starting_frame: Container[Frame],
+        warehouse: Optional[Warehouse] = None,
     ):
         return VectorR3.from_array(
-            array=starting_frame.pose.orientation.components.as_rotation().as_matrix()
+            array=starting_frame.contents.pose.orientation.components.as_rotation().as_matrix()
             @ self.components.array
         )
 
     def _to_target_frame_components(
         self,
-        starting_frame: Frame,
-        target_frame: Frame,
+        starting_frame: Container[Frame],
+        target_frame: Container[Frame],
+        warehouse: Optional[Warehouse] = None,
     ) -> VectorR3:
         return VectorR3.from_array(
-            target_frame.pose.orientation.to_ground_frame(starting_frame=target_frame)
+            target_frame.contents.pose.orientation.to_ground_frame(
+                starting_frame=target_frame
+            )
             .components.as_rotation()
             .inv()
             .as_matrix()
@@ -117,19 +153,21 @@ class Point3D(Transformable3D[VectorR3]):
 
     def _to_parent_frame_components(
         self,
-        starting_frame: Frame,
+        starting_frame: Container[Frame],
+        warehouse: Optional[Warehouse] = None,
     ):
         return VectorR3.from_array(
             array=Vector3D(components=self.components)
             .to_parent_frame(starting_frame=starting_frame)
             .components.array
-            + starting_frame.pose.position.components.array
+            + starting_frame.contents.pose.position.components.array
         )
 
     def _to_target_frame_components(
         self,
-        starting_frame: Frame,
-        target_frame: Frame,
+        starting_frame: Container[Frame],
+        target_frame: Container[Frame],
+        warehouse: Optional[Warehouse] = None,
     ) -> VectorR3:
         return VectorR3.from_array(
             Vector3D(components=self.components)
@@ -139,7 +177,7 @@ class Point3D(Transformable3D[VectorR3]):
             )
             .components.array
             + self.to_ground_frame(starting_frame=starting_frame).components.array
-            - target_frame.pose.position.to_ground_frame(
+            - target_frame.contents.pose.position.to_ground_frame(
                 starting_frame=target_frame
             ).components.array
         )
@@ -150,20 +188,22 @@ class Orientation3D(Transformable3D[Quaternion]):
 
     def _to_parent_frame_components(
         self,
-        starting_frame: Frame,
+        starting_frame: Container[Frame],
+        warehouse: Optional[Warehouse] = None,
     ) -> Quaternion:
         return Quaternion.from_rotation(
-            starting_frame.pose.orientation.components.as_rotation()
+            starting_frame.contents.pose.orientation.components.as_rotation()
             * self.components.as_rotation()
         )
 
     def _to_target_frame_components(
         self,
-        starting_frame: Frame,
-        target_frame: Frame,
+        starting_frame: Container[Frame],
+        target_frame: Container[Frame],
+        warehouse: Optional[Warehouse] = None,
     ) -> Quaternion:
         return Quaternion.from_rotation(
-            target_frame.pose.orientation.to_ground_frame(
+            target_frame.contents.pose.orientation.to_ground_frame(
                 starting_frame=target_frame,
             )
             .components.as_rotation()
@@ -187,7 +227,8 @@ class Pose3D(Transformable3D[tuple[VectorR3, Quaternion]]):
 
     def _to_parent_frame_components(
         self,
-        starting_frame: Frame,
+        starting_frame: Container[Frame],
+        warehouse: Optional[Warehouse] = None,
     ) -> tuple[VectorR3, Quaternion]:
         point_components, orientation_components = self.components
         point = Point3D(components=point_components)
@@ -200,8 +241,9 @@ class Pose3D(Transformable3D[tuple[VectorR3, Quaternion]]):
 
     def _to_target_frame_components(
         self,
-        starting_frame: Frame,
-        target_frame: Frame,
+        starting_frame: Container[Frame],
+        target_frame: Container[Frame],
+        warehouse: Optional[Warehouse] = None,
     ) -> tuple[VectorR3, Quaternion]:
         point_components, orientation_components = self.components
         point = Point3D(components=point_components)
