@@ -8,6 +8,7 @@ from djin.math_objects.framed import (
     Point3D,
     Vector3D,
     Pose3D,
+    Orientation3D,
 )
 
 __all__ = [

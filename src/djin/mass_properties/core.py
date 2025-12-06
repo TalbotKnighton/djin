@@ -107,13 +107,13 @@ class MassProperties(Transformable3D[C], Stowable):
 
     @property
     def center_of_mass(self) -> Point3D:
-        return self.components[0]
+        return self.get_components[0]
 
     @property
     def inertia_tensor(self) -> InertiaTensor:
-        return self.components[1]
+        return self.get_components[1]
 
-    def _to_parent_frame_components(
+    def get_components_in_parent_frame(
         self,
         starting_frame: Container[Frame],
         warehouse: Optional[Warehouse] = None,
@@ -145,7 +145,7 @@ class MassProperties(Transformable3D[C], Stowable):
             new_inertia_tensor,
         )
 
-    def _to_target_frame_components(
+    def get_components_in_target_frame(
         self,
         starting_frame: Container[Frame],
         target_frame: Container[Frame],
@@ -156,7 +156,7 @@ class MassProperties(Transformable3D[C], Stowable):
             target_frame=target_frame,
             warehouse=warehouse,
         )
-        return self._to_parent_frame_components(
+        return self.get_components_in_parent_frame(
             starting_frame=Container(id=-1, contents=frame),
             warehouse=warehouse,
         )

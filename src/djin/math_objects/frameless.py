@@ -394,6 +394,22 @@ class Quaternion(pyd.BaseModel):
     # Define a 1D array of length 4 with float64 dtype
     data: tuple[float, float, float, float] = (0, 0, 0, 1)
 
+    def norm(self) -> float:
+        return np.sqrt(np.sum((self * self).array))
+
+    def conj(self):
+        return Quaternion(
+            data=(
+                -self.data[0],
+                -self.data[1],
+                -self.data[2],
+                self.data[3],
+            )
+        )
+
+    def inv(self) -> Quaternion:
+        return self.conj() * (self.norm() ** 2)
+
     @property
     def array(self) -> NDArrayFloat64:
         return np.asarray(self.data)
