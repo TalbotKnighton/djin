@@ -6,39 +6,18 @@ import warnings
 import typing_extensions
 
 import numpy as np
-from djin.containers.core import Container, Stowable, Warehouse, get_warehouse
+from djin.containers.core import ID, Container, Stowable, Warehouse, get_warehouse
 from djin.frames.core import Frame
 from djin.math_objects.framed import Transformable3D, Point3D
 from djin.math_objects.frameless import Tensor3x3Symmetric
+from djin.math_objects.framed import (
+    to_parent_frame,
+    to_ground_frame,
+    to_target_frame,
+)
 from djin.base import immutable
+
 import pydantic as pyd
-
-T = TypeVar("T", bound=Callable[..., Any])
-
-
-def not_implemented(alternate_method: str) -> Callable[[T], T]:
-    """Mark a method as not implemented and suggest an alternative.
-
-    Args:
-        alternate_method: Name of the method to use instead
-
-    Returns:
-        Decorator that marks the method as not implemented
-    """
-
-    def decorator(func: T) -> T:
-        @functools.wraps(func)
-        def wrapper(*args, **kwargs):
-            warnings.warn(
-                f"{func.__qualname__} is not implemented. Use {alternate_method} instead.",
-                category=DeprecationWarning,
-                stacklevel=2,
-            )
-            raise NotImplementedError(f"Use {alternate_method} instead")
-
-        return cast(T, wrapper)
-
-    return decorator
 
 
 class IntegralConvention(StrEnum):
@@ -81,7 +60,7 @@ class InertiaTensor(Tensor3x3Symmetric):
             integral_convention=integral_convention,
         )
 
-    def with_integral_convention(
+    def with_given_integral_convention(
         self,
         integral_convention: IntegralConvention,
     ) -> InertiaTensor:
@@ -96,7 +75,7 @@ class InertiaTensor(Tensor3x3Symmetric):
         )
 
 
-C = tuple[Point3D, InertiaTensor]
+C = tuple[Frame, InertiaTensor]
 
 
 @immutable
@@ -104,25 +83,24 @@ class MassProperties(Transformable3D[C], Stowable):
     """"""
 
     mass: float
+    center_of_mass: Frame
+    inertia_tensor: InertiaTensor
 
-    @property
-    def center_of_mass(self) -> Point3D:
-        return self.get_components[0]
-
-    @property
-    def inertia_tensor(self) -> InertiaTensor:
-        return self.get_components[1]
+    def get_components(self):
+        return (
+            self.center_of_mass,
+            self.inertia_tensor,
+        )
 
     def get_components_in_parent_frame(
         self,
         starting_frame: Container[Frame],
         warehouse: Optional[Warehouse] = None,
-    ) -> C:
-        new_cm = self.center_of_mass.to_parent_frame(starting_frame=starting_frame)
-        frame = starting_frame.contents
-        f_pos = frame.pose.position.components.array
-        x, y, z = tuple(f_pos)
-        parallel_axis_term_in_new_frame = self.mass * np.array(  # calculated in
+    ):
+        new_cm = starting_frame.contents.to_parent_frame(warehouse=warehouse)
+        f = starting_frame.contents
+        x, y, z = starting_frame.contents.pose.position.vector.data
+        parallel_axis_term_in_new_frame = self.mass * np.array(
             [
                 [(y**2 + z**2), -x * y, -x * z],
                 [-y * x, (x**2 + z**2), -y * z],
@@ -130,9 +108,9 @@ class MassProperties(Transformable3D[C], Stowable):
             ]
         )
 
+        r = f.pose.orientation.quaternion.as_rotation()
         inertia_tensor_rotated_to_new_frame = (
-            frame.pose.orientation.components.as_rotation().as_matrix()
-            @ self.inertia_tensor.array
+            r.as_matrix() @ self.inertia_tensor.array @ r.inv().as_matrix()
         )
 
         new_inertia_tensor = InertiaTensor.from_components(
@@ -150,13 +128,44 @@ class MassProperties(Transformable3D[C], Stowable):
         starting_frame: Container[Frame],
         target_frame: Container[Frame],
         warehouse: Optional[Warehouse] = None,
-    ) -> C:
+    ):
         frame = starting_frame.contents.to_target_frame(
-            starting_frame=starting_frame,
             target_frame=target_frame,
             warehouse=warehouse,
         )
         return self.get_components_in_parent_frame(
             starting_frame=Container(id=-1, contents=frame),
+            warehouse=warehouse,
+        )
+
+    def to_parent_frame(
+        self,
+        warehouse: Optional[Warehouse] = None,
+    ):
+        return to_parent_frame(
+            transformable=self,
+            starting_frame=self.center_of_mass.container_id,
+            warehouse=warehouse,
+        )
+
+    def to_ground_frame(
+        self,
+        warehouse: Optional[Warehouse] = None,
+    ):
+        return to_ground_frame(
+            transformable=self,
+            starting_frame=self.center_of_mass.container_id,
+            warehouse=warehouse,
+        )
+
+    def to_target_frame(
+        self,
+        target_frame: Optional[ID | Container[Frame]],
+        warehouse: Optional[Warehouse] = None,
+    ):
+        return to_target_frame(
+            transformable=self,
+            starting_frame=self.center_of_mass.container_id,
+            target_frame=target_frame,
             warehouse=warehouse,
         )

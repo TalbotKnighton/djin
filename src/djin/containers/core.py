@@ -146,12 +146,24 @@ def is_id(t: Any) -> bool:
 class Stowable:
     """Mixin class that makes a pydantic model packable into a Container."""
 
+    container_id: Optional[ID] = None
+
     def stow(
         self,
         id: Optional[ID] = None,
         warehouse: Optional[Warehouse] = None,
     ) -> Container[Self]:
-        return get_warehouse(warehouse=warehouse).pack(id=id, contents=self)
+        return get_warehouse(
+            warehouse=warehouse,
+        ).pack(
+            id=id,
+            contents=self,
+        )
+
+    def with_container_id(self, id: ID) -> Self:
+        if not isinstance(self, pyd.BaseModel):
+            raise TypeError("You must use this as a mix in with pydantic BaseModel")
+        return self.model_copy(update={"container_id": id})
 
 
 RT = TypeVar("RT")
@@ -219,10 +231,15 @@ class Warehouse(Container, Generic[RT]):
         contents: RT,
         id: Optional[ID] = None,
     ):
+        next_id = id if id is not None else self.get_next_id()
+        if isinstance(contents, Stowable):
+            to_stow = contents.with_container_id(id=next_id)
+        else:
+            to_stow = contents
         return self.put(
             container=Container[RT](
-                id=id if id is not None else self.get_next_id(),
-                contents=contents,
+                id=next_id,
+                contents=to_stow,
             )
         )
 
