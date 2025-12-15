@@ -24,6 +24,8 @@ dependencies = [
     "numpydantic>=1.7.0",
     "plotly>=6.4.0",
     "pydantic>=2.12.4",
+    "pytest>=9.0.2",
+    "pytest-cov>=7.0.0",
     "scipy>=1.16.3",
     "scipy-stubs>=1.11.0",
 ]
@@ -37,3 +39,20 @@ packages = ["src/djin"]
 
 [tool.hatch.build]
 packages = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+# Optional additional configurations:
+addopts = "--verbose --cov=src/djin"
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests as integration tests",
+]
+
+[dependency-groups]
+dev = [
+    "mkdocs>=1.6.1",
+    "mkdocs-material>=9.7.0",
+    "mkdocs-mermaid2-plugin>=1.2.3",
+]

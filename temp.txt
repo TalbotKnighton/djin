@@ -1,0 +1,48 @@
+
+```mermaid
+graph TD
+    subgraph "Abstract Math Objects"
+        VectorR3[VectorR3] -> Vector3D
+        VectorR3[VectorR3] -> Point3D
+        Tensor3x3[Tensor3x3]
+        Tensor3x3Symmetric[Tensor3x3Symmetric]
+        Quaternion[Quaternion] -> Orientation3D
+        Rotation[Rotation]
+    end
+    subgraph "Transformable Math Objects"
+        Vector3D[Vector3D] -> Pose3D
+        Point3D[Point3D] -> Pose3D
+        Orientation3D[Orientation3D]
+        Pose3D[Pose3D]
+    end
+```
+
+
+
+```mermaid
+graph LR
+
+    subgraph AMO ["Abstract Math Objects"]
+        direction TD
+        VectorR3[VectorR3]
+        Tensor3x3[Tensor3x3]
+        Tensor3x3Symmetric[Tensor3x3Symmetric]
+        Quaternion[Quaternion]
+        Rotation[Rotation]
+    end
+
+    subgraph TMO ["Transformable Math Objects"]
+        direction TD
+        Vector3D[Vector3D]
+        Point3D[Point3D]
+        Orientation3D[Orientation3D]
+        Pose3D[Pose3D]
+
+        Point3D --> Pose3D
+        Orientation3D --> Pose3D
+    end
+
+    VectorR3 --> Vector3D
+    VectorR3 --> Point3D
+    Quaternion --> Orientation3D
+```

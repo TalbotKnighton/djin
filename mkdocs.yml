@@ -1,0 +1,16 @@
+site_name: My Docs
+theme: material
+
+watch:
+  - mkdocs.yml
+
+use_directory_urls: true
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:mermaid2.fence_mermaid_custom

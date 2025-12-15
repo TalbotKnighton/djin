@@ -1,23 +1,19 @@
 from __future__ import annotations
 from enum import StrEnum, auto
-import functools
-from typing import Any, Callable, Optional, Self, TypeVar, cast
-import warnings
+from typing import Literal, Optional, Self
 import typing_extensions
 
 import numpy as np
-from djin.containers.core import ID, Container, Stowable, Warehouse, get_warehouse
+from djin.containers.core import ID, Container, Stowable, Warehouse
 from djin.frames.core import Frame
-from djin.math_objects.framed import Transformable3D, Point3D
+from djin.math_objects.framed import Pose3D, Transformable3D
 from djin.math_objects.frameless import Tensor3x3Symmetric
-from djin.math_objects.framed import (
-    to_parent_frame,
+from djin.transforms.transform3d import (
     to_ground_frame,
+    to_parent_frame,
     to_target_frame,
 )
 from djin.base import immutable
-
-import pydantic as pyd
 
 
 class IntegralConvention(StrEnum):
@@ -31,7 +27,7 @@ class InertiaTensor(Tensor3x3Symmetric):
 
     @property
     def array(self) -> np.ndarray:
-        a = self.array
+        a = super().array
         c = -1 if self.integral_convention == IntegralConvention.positive else 1
         for i, j in zip((0, 1, 2), (0, 1, 2)):
             if i != j:
@@ -75,21 +71,31 @@ class InertiaTensor(Tensor3x3Symmetric):
         )
 
 
-C = tuple[Frame, InertiaTensor]
+C = tuple[Pose3D, InertiaTensor, Optional[ID]]
 
 
 @immutable
 class MassProperties(Transformable3D[C], Stowable):
     """"""
 
+    type: Literal["MassProperties"] = "MassProperties"
     mass: float
-    center_of_mass: Frame
+    pose: Pose3D
     inertia_tensor: InertiaTensor
+    frame: Optional[ID]
+
+    def get_component_field_names(self) -> tuple[str, ...]:
+        return (
+            "pose",
+            "inertia_tensor",
+            "frame",
+        )
 
     def get_components(self):
         return (
-            self.center_of_mass,
+            self.pose,
             self.inertia_tensor,
+            self.frame,
         )
 
     def get_components_in_parent_frame(
@@ -97,7 +103,12 @@ class MassProperties(Transformable3D[C], Stowable):
         starting_frame: Container[Frame],
         warehouse: Optional[Warehouse] = None,
     ):
-        new_cm = starting_frame.contents.to_parent_frame(warehouse=warehouse)
+        new_pose = to_parent_frame(
+            self.pose,
+            starting_frame=starting_frame,
+            warehouse=warehouse,
+        )
+
         f = starting_frame.contents
         x, y, z = starting_frame.contents.pose.position.vector.data
         parallel_axis_term_in_new_frame = self.mass * np.array(
@@ -119,8 +130,9 @@ class MassProperties(Transformable3D[C], Stowable):
         )
 
         return (
-            new_cm,
+            new_pose,
             new_inertia_tensor,
+            starting_frame.contents.parent_id,
         )
 
     def get_components_in_target_frame(
@@ -144,7 +156,7 @@ class MassProperties(Transformable3D[C], Stowable):
     ):
         return to_parent_frame(
             transformable=self,
-            starting_frame=self.center_of_mass.container_id,
+            starting_frame=self.frame,
             warehouse=warehouse,
         )
 
@@ -154,7 +166,7 @@ class MassProperties(Transformable3D[C], Stowable):
     ):
         return to_ground_frame(
             transformable=self,
-            starting_frame=self.center_of_mass.container_id,
+            starting_frame=self.frame,
             warehouse=warehouse,
         )
 
@@ -165,7 +177,7 @@ class MassProperties(Transformable3D[C], Stowable):
     ):
         return to_target_frame(
             transformable=self,
-            starting_frame=self.center_of_mass.container_id,
+            starting_frame=self.frame,
             target_frame=target_frame,
             warehouse=warehouse,
         )

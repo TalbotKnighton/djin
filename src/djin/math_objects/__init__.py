@@ -15,6 +15,7 @@ __all__ = [
     "VectorR3",
     "Tensor3x3",
     "Quaternion",
+    "Orientation3D",
     "Rotation",
     "Point3D",
     "Vector3D",

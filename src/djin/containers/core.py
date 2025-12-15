@@ -144,9 +144,12 @@ def is_id(t: Any) -> bool:
 
 
 class Stowable:
-    """Mixin class that makes a pydantic model packable into a Container."""
+    """Mixin class that makes a pydantic model packable into a Container.
 
-    container_id: Optional[ID] = None
+    Classes using this mixin should be cross-referenced by container ID
+    """
+
+    # container_id: Optional[ID] = None
 
     def stow(
         self,
@@ -160,10 +163,10 @@ class Stowable:
             contents=self,
         )
 
-    def with_container_id(self, id: ID) -> Self:
-        if not isinstance(self, pyd.BaseModel):
-            raise TypeError("You must use this as a mix in with pydantic BaseModel")
-        return self.model_copy(update={"container_id": id})
+    # def with_container_id(self, id: ID) -> Self:
+    #     if not isinstance(self, pyd.BaseModel):
+    #         raise TypeError("You must use this as a mix in with pydantic BaseModel")
+    #     return self.model_copy(update={"container_id": id})
 
 
 RT = TypeVar("RT")
@@ -232,10 +235,11 @@ class Warehouse(Container, Generic[RT]):
         id: Optional[ID] = None,
     ):
         next_id = id if id is not None else self.get_next_id()
-        if isinstance(contents, Stowable):
-            to_stow = contents.with_container_id(id=next_id)
-        else:
-            to_stow = contents
+        # if isinstance(contents, Stowable):
+        #     to_stow = contents.with_container_id(id=next_id)
+        # else:
+        #     to_stow = contents
+        to_stow = contents
         return self.put(
             container=Container[RT](
                 id=next_id,
@@ -257,10 +261,6 @@ class Warehouse(Container, Generic[RT]):
     @contextmanager
     def set_context(self):
         return set_warehouse(warehouse=self)
-
-
-# class TypedID(pyd.BaseModel, Generic[RT]):
-#     """"""
 
 
 class _test1:

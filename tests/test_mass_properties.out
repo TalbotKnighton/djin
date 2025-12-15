@@ -1,0 +1,291 @@
+{
+    "type": "container",
+    "id": "Warehouse",
+    "contents": {
+        "0": {
+            "type": "container",
+            "id": 0,
+            "contents": {
+                "type": "Frame",
+                "parent_id": null,
+                "pose": {
+                    "type": "Pose3D",
+                    "position": {
+                        "type": "Point3D",
+                        "vector": {
+                            "data": [
+                                0.0,
+                                1.0,
+                                0.0
+                            ]
+                        }
+                    },
+                    "orientation": {
+                        "type": "Rotation3D",
+                        "quaternion": {
+                            "data": [
+                                0.0,
+                                0.0,
+                                0.0,
+                                1.0
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "1": {
+            "type": "container",
+            "id": 1,
+            "contents": {
+                "type": "Frame",
+                "parent_id": 0,
+                "pose": {
+                    "type": "Pose3D",
+                    "position": {
+                        "type": "Point3D",
+                        "vector": {
+                            "data": [
+                                0.0,
+                                1.0,
+                                0.0
+                            ]
+                        }
+                    },
+                    "orientation": {
+                        "type": "Rotation3D",
+                        "quaternion": {
+                            "data": [
+                                0.0,
+                                0.0,
+                                0.0,
+                                1.0
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "2": {
+            "type": "container",
+            "id": 2,
+            "contents": {
+                "type": "MassProperties",
+                "mass": 1.0,
+                "pose": {
+                    "type": "Pose3D",
+                    "position": {
+                        "type": "Point3D",
+                        "vector": {
+                            "data": [
+                                0.0,
+                                1.0,
+                                0.0
+                            ]
+                        }
+                    },
+                    "orientation": {
+                        "type": "Rotation3D",
+                        "quaternion": {
+                            "data": [
+                                0.0,
+                                0.0,
+                                0.0,
+                                1.0
+                            ]
+                        }
+                    }
+                },
+                "inertia_tensor": {
+                    "xx": 1.0,
+                    "yy": 1.0,
+                    "zz": 1.0,
+                    "xy": 0.0,
+                    "zx": 0.0,
+                    "yz": 0.0,
+                    "integral_convention": "positive"
+                },
+                "frame": 1
+            }
+        }
+    }
+}
+
+{
+    "type": "Frame",
+    "parent_id": 0,
+    "pose": {
+        "type": "Pose3D",
+        "position": {
+            "type": "Point3D",
+            "vector": {
+                "data": [
+                    0.0,
+                    2.0,
+                    0.0
+                ]
+            }
+        },
+        "orientation": {
+            "type": "Rotation3D",
+            "quaternion": {
+                "data": [
+                    0.0,
+                    0.0,
+                    0.0,
+                    1.0
+                ]
+            }
+        }
+    }
+}
+
+{
+    "type": "Frame",
+    "parent_id": 0,
+    "pose": {
+        "type": "Pose3D",
+        "position": {
+            "type": "Point3D",
+            "vector": {
+                "data": [
+                    0.0,
+                    2.0,
+                    0.0
+                ]
+            }
+        },
+        "orientation": {
+            "type": "Rotation3D",
+            "quaternion": {
+                "data": [
+                    0.0,
+                    0.0,
+                    0.0,
+                    1.0
+                ]
+            }
+        }
+    }
+}
+
+{
+    "type": "container",
+    "id": 2,
+    "contents": {
+        "type": "MassProperties",
+        "mass": 1.0,
+        "pose": {
+            "type": "Pose3D",
+            "position": {
+                "type": "Point3D",
+                "vector": {
+                    "data": [
+                        0.0,
+                        1.0,
+                        0.0
+                    ]
+                }
+            },
+            "orientation": {
+                "type": "Rotation3D",
+                "quaternion": {
+                    "data": [
+                        0.0,
+                        0.0,
+                        0.0,
+                        1.0
+                    ]
+                }
+            }
+        },
+        "inertia_tensor": {
+            "xx": 1.0,
+            "yy": 1.0,
+            "zz": 1.0,
+            "xy": 0.0,
+            "zx": 0.0,
+            "yz": 0.0,
+            "integral_convention": "positive"
+        },
+        "frame": 1
+    }
+}
+
+{
+    "type": "MassProperties",
+    "mass": 1.0,
+    "pose": {
+        "type": "Pose3D",
+        "position": {
+            "type": "Point3D",
+            "vector": {
+                "data": [
+                    0.0,
+                    2.0,
+                    0.0
+                ]
+            }
+        },
+        "orientation": {
+            "type": "Rotation3D",
+            "quaternion": {
+                "data": [
+                    0.0,
+                    0.0,
+                    0.0,
+                    1.0
+                ]
+            }
+        }
+    },
+    "inertia_tensor": {
+        "xx": 2.0,
+        "yy": 1.0,
+        "zz": 2.0,
+        "xy": 0.0,
+        "zx": 0.0,
+        "yz": 0.0,
+        "integral_convention": "positive"
+    },
+    "frame": 0
+}
+
+{
+    "type": "MassProperties",
+    "mass": 1.0,
+    "pose": {
+        "type": "Pose3D",
+        "position": {
+            "type": "Point3D",
+            "vector": {
+                "data": [
+                    0.0,
+                    2.0,
+                    0.0
+                ]
+            }
+        },
+        "orientation": {
+            "type": "Rotation3D",
+            "quaternion": {
+                "data": [
+                    0.0,
+                    0.0,
+                    0.0,
+                    1.0
+                ]
+            }
+        }
+    },
+    "inertia_tensor": {
+        "xx": 2.0,
+        "yy": 1.0,
+        "zz": 2.0,
+        "xy": 0.0,
+        "zx": 0.0,
+        "yz": 0.0,
+        "integral_convention": "positive"
+    },
+    "frame": 0
+}

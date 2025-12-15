@@ -449,7 +449,11 @@ class Quaternion(pyd.BaseModel):
         return self.array[3]
 
     @classmethod
-    def from_components(cls, vector: VectorR3, scalar: float | int) -> Quaternion:
+    def from_components(
+        cls,
+        vector: VectorR3,
+        scalar: float | int,
+    ) -> Quaternion:
         """
         Creates a new `Quaternion` instance from a vector and scalar.
         Asserts vector is length 3
@@ -524,7 +528,7 @@ class Quaternion(pyd.BaseModel):
         return Rotation.from_quat(self.array)
 
     @classmethod
-    def from_rotation(cls, r: Rotation) -> Quaternion:
+    def from_rotation(cls, r: Rotation | ScipyRotation) -> Quaternion:
         """
         Creates a `Quaternion` instance from a `Rotation` object.
 
