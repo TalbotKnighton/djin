@@ -1,5 +1,6 @@
 from __future__ import annotations
 from enum import StrEnum, auto
+from itertools import product
 from typing import Literal, Optional, Self
 import typing_extensions
 
@@ -29,7 +30,7 @@ class InertiaTensor(Tensor3x3Symmetric):
     def array(self) -> np.ndarray:
         a = super().array
         c = -1 if self.integral_convention == IntegralConvention.positive else 1
-        for i, j in zip((0, 1, 2), (0, 1, 2)):
+        for i, j in product((0, 1, 2), (0, 1, 2)):
             if i != j:
                 a[i, j] = c * a[i, j]
         return a
