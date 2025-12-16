@@ -273,6 +273,27 @@ class Tensor3x3(pyd.BaseModel):
             f"Unsupported type for multiplication: {type(other)}. Expected float or int."
         )
 
+    def __len__(self) -> int:
+        return len(self.array)
+
+    def __array__(self, *args, **kwargs) -> np.ndarray:
+        return self.array.__array__(*args, **kwargs)
+
+    def __array_ufunc__(self, ufunc, method, *inputs, **kwargs):
+        """
+        Handle numpy ufuncs.
+        """
+        arrays = []
+        for input_ in inputs:
+            if isinstance(input_, VectorR3):
+                arrays.append(input_.array)
+            else:
+                arrays.append(input_)
+        result = getattr(ufunc, method)(*arrays, **kwargs)
+        if isinstance(result, np.ndarray) and result.shape == (3,):
+            return self._constructor.from_array(array=result)
+        return result
+
     @property
     def _constructor(self) -> Type[Tensor3x3]:
         """
@@ -386,6 +407,27 @@ class Tensor3x3Symmetric(pyd.BaseModel):
         """
         return type(self)
 
+    def __len__(self) -> int:
+        return len(self.array)
+
+    def __array__(self, *args, **kwargs) -> np.ndarray:
+        return self.array.__array__(*args, **kwargs)
+
+    def __array_ufunc__(self, ufunc, method, *inputs, **kwargs):
+        """
+        Handle numpy ufuncs.
+        """
+        arrays = []
+        for input_ in inputs:
+            if isinstance(input_, VectorR3):
+                arrays.append(input_.array)
+            else:
+                arrays.append(input_)
+        result = getattr(ufunc, method)(*arrays, **kwargs)
+        if isinstance(result, np.ndarray) and result.shape == (3,):
+            return self._constructor.from_array(array=result)
+        return result
+
 
 @immutable
 class Quaternion(pyd.BaseModel):
@@ -415,14 +457,24 @@ class Quaternion(pyd.BaseModel):
         return np.asarray(self.data)
 
     @classmethod
-    def from_array(cls, array: NDArrayFloat64) -> Self:
+    def from_array(cls, array: NDArrayFloat64 | float) -> Self:
         """
         Creates a new `Quaternion` instance from a length 4 numpy array.
 
         Returns:
             (Quaternion): New `Quaternion` instance.
         """
-        return cls(data=array.tolist())
+        val = np.atleast_1d(array).tolist()
+        if len(val) == 4:
+            return cls(data=val)
+        if len(val) == 3:
+            return cls(data=val + [0])  # pure quat
+        if len(val) == 1:
+            return cls(data=[0, 0, 0] + val)
+        else:
+            raise ValueError(
+                f"{array = } should be a scalar or an array of length 1 (scalar), 3 (pure quat), 4 (quat)"
+            )
 
     @property
     def i(self):
@@ -462,6 +514,27 @@ class Quaternion(pyd.BaseModel):
             (Quaternion): New quaternion object.
         """
         return cls.from_array(array=np.array(list(vector) + [scalar]))
+
+    def __add__(self, other: Quaternion | Iterable | float | int) -> Quaternion:
+        """
+        Defines the multiplication operation against another `Quaternion` instance or
+        against a scalar.
+        """
+        if isinstance(other, Quaternion):
+            return Quaternion(
+                data=(
+                    self.i + other.i,
+                    self.j + other.j,
+                    self.k + other.k,
+                    self.s + other.s,
+                )
+            )
+        if isinstance(other, Iterable):
+            return self + Quaternion.from_array(array=np.array(other))
+        if isinstance(other, (float, int)):
+            return Quaternion.from_array(array=np.array(self.array + other))
+
+    __radd__ = __add__
 
     def __mul__(self, other: Quaternion | Iterable | float | int) -> Quaternion:
         """
@@ -539,6 +612,34 @@ class Quaternion(pyd.BaseModel):
 
     def __neg__(self):
         return type(self).from_array(array=-self.array)
+
+    def __len__(self) -> int:
+        return len(self.array)
+
+    def __array__(self, *args, **kwargs) -> np.ndarray:
+        return self.array.__array__(*args, **kwargs)
+
+    def __array_ufunc__(self, ufunc, method, *inputs, **kwargs):
+        """
+        Handle numpy ufuncs.
+        """
+        arrays = []
+        for input_ in inputs:
+            if isinstance(input_, VectorR3):
+                arrays.append(input_.array)
+            else:
+                arrays.append(input_)
+        result = getattr(ufunc, method)(*arrays, **kwargs)
+        if isinstance(result, np.ndarray) and result.shape == (3,):
+            return self._constructor.from_array(array=result)
+        return result
+
+    @property
+    def _constructor(self) -> Type[Quaternion]:
+        """
+        Returns the constructor for the class. This is used to create new instances of the class.
+        """
+        return type(self)
 
 
 @immutable
