@@ -1,10 +1,30 @@
 site_name: My Docs
 theme: material
 
+nav:
+- Welcome: index.md
+- Examples: examples.md
+- Code Reference: reference/
+
 watch:
   - mkdocs.yml
 
 use_directory_urls: true
+
+plugins:
+- search
+- gen-files:
+    scripts:
+    - scripts/gen_ref_pages.py
+- literate-nav:
+    nav_file: SUMMARY.md
+- section-index
+- mkdocstrings:
+    handlers:
+      python:
+        inventories:
+        # latest instead of stable
+        - https://installer.readthedocs.io/en/latest/objects.inv
 
 markdown_extensions:
   - admonition
