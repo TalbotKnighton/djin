@@ -537,6 +537,9 @@ class Quaternion(pyd.BaseModel):
         """
         return cls.from_array(array=r.as_quat())
 
+    def __neg__(self):
+        return type(self).from_array(array=-self.array)
+
 
 @immutable
 class Rotation(pyd.BaseModel):
