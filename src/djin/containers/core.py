@@ -93,11 +93,8 @@ def validate_against_named_generic(model: pyd.BaseModel, obj: Any, typevar: Type
     generic_type = get_named_type_generic(model, typevar.__name__)
     _type: tuple[Type] = tuple(get_origin(generic_type))
     # _type = _type[0] if len(_type) == 1 else _type
-    try:
-        if not isinstance(obj, _type):
-            raise pyd.ValidationError
-    except TypeError:
-        breakpoint()
+    if not isinstance(obj, _type):
+        raise pyd.ValidationError
 
 
 # @mutable
@@ -136,7 +133,8 @@ def to_int_if_possible(i: Any):
         return str(i)
 
 
-ID = Annotated[int | str, pyd.BeforeValidator(lambda s: to_int_if_possible(s))]
+ID = Annotated[int | str, pyd.AfterValidator(lambda s: to_int_if_possible(s))]
+# ID = int | str
 
 
 def is_id(t: Any) -> bool:
@@ -189,6 +187,7 @@ def to_int(i: Any):
 
 @immutable
 class Warehouse(Container, Generic[RT]):
+    id: ID = "default"
     contents: dict[ID, Container[RT]] = pyd.Field(
         default_factory=dict[ID, Container[RT]]
     )
@@ -389,7 +388,7 @@ class Ref(pyd.BaseModel, Generic[RT]):
         return contents
 
 
-def ref(type: Type[RT], id: str) -> Ref[RT]:
+def ref(type: Type[RT], id: ID) -> Ref[RT]:
     return Ref[type](id=id)
 
 

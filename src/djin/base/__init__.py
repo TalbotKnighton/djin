@@ -2,6 +2,9 @@ import pydantic
 from typing import Type, TypeVar
 
 
+TypeDiscriminator = pydantic.Field(discriminator="type")
+
+
 class ImmutableBaseModel(pydantic.BaseModel):
     model_config = pydantic.ConfigDict(frozen=True)
 

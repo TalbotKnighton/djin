@@ -1,6 +1,8 @@
 from __future__ import annotations
 from typing import Literal, Optional, TYPE_CHECKING
-from djin.math_objects.frameless import VectorR3, Quaternion
+
+import pydantic
+from djin.math_objects.frameless import Axis, VectorR3, Quaternion
 from djin.base import immutable
 from djin.containers.core import Container, Warehouse
 from djin.transforms.transform3d import (
@@ -18,7 +20,7 @@ if TYPE_CHECKING:
 @immutable
 class Vector3D(Transformable3D[tuple[VectorR3]]):
     type: Literal["Vector3D"] = "Vector3D"
-    vector: VectorR3
+    vector: VectorR3 = pydantic.Field(default_factory=VectorR3)
 
     def get_components(self):
         return (self.vector,)
@@ -69,7 +71,16 @@ class Vector3D(Transformable3D[tuple[VectorR3]]):
 @immutable
 class Point3D(Transformable3D[tuple[VectorR3]]):
     type: Literal["Point3D"] = "Point3D"
-    vector: VectorR3
+    vector: VectorR3 = pydantic.Field(default_factory=VectorR3)
+
+    @classmethod
+    def single_axis_displacement(cls, axis: Axis, distance: float):
+        return cls(
+            vector=VectorR3.single_axis_displacement(
+                axis=axis,
+                distance=distance,
+            )
+        )
 
     def get_component_field_names(self):
         return ("vector",)
@@ -119,7 +130,22 @@ class Point3D(Transformable3D[tuple[VectorR3]]):
 @immutable
 class Orientation3D(Transformable3D[tuple[Quaternion]]):
     type: Literal["Rotation3D"] = "Rotation3D"
-    quaternion: Quaternion
+    quaternion: Quaternion = pydantic.Field(default_factory=Quaternion)
+
+    @classmethod
+    def single_axis_rotation(
+        cls,
+        axis: Axis,
+        angle: float,
+        degrees: bool,
+    ) -> Orientation3D:
+        return cls(
+            quaternion=Quaternion.single_axis_rotation(
+                axis=axis,
+                angle=angle,
+                degrees=degrees,
+            )
+        )
 
     def get_component_field_names(self):
         return ("quaternion",)

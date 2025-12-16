@@ -3,6 +3,8 @@ from djin.math_objects.frameless import (
     Tensor3x3,
     Quaternion,
     Rotation,
+    Axis,
+    get_rotation_quat,
 )
 from djin.math_objects.framed import (
     Point3D,
@@ -20,4 +22,6 @@ __all__ = [
     "Point3D",
     "Vector3D",
     "Pose3D",
+    "Axis",
+    "get_rotation_quat",
 ]

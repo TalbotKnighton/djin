@@ -1,4 +1,5 @@
 from __future__ import annotations
+from enum import StrEnum, auto
 from typing import Annotated, Any, Iterable, Optional, Self, Type, TypeAlias
 
 from numpydantic import NDArray
@@ -35,11 +36,18 @@ class VectorR3(pyd.BaseModel):
         Returns:
             (VectorR3): New `VectorR3` instance.
         """
-        return cls(data=array.tolist())
+        return cls(data=np.atleast_1d(array).tolist())
 
     @property
     def array(self) -> NDArrayFloat64:
         return np.asarray(self.data)
+
+    @classmethod
+    def single_axis_displacement(cls, axis: Axis, distance: float) -> VectorR3:
+        return get_single_axis_displacement(
+            axis=axis,
+            distance=distance,
+        )
 
     # @pyd.field_validator("tuple")
     # def validate_array(cls, v: tuple[float, float, float]) -> NDArrayFloat64:
@@ -437,7 +445,7 @@ class Quaternion(pyd.BaseModel):
     data: tuple[float, float, float, float] = (0, 0, 0, 1)
 
     def norm(self) -> float:
-        return np.sqrt(np.sum((self * self).array))
+        return np.sqrt(np.sum((self * self.conj()).array))
 
     def conj(self):
         return Quaternion(
@@ -451,6 +459,19 @@ class Quaternion(pyd.BaseModel):
 
     def inv(self) -> Quaternion:
         return self.conj() * (self.norm() ** 2)
+
+    @classmethod
+    def single_axis_rotation(
+        cls,
+        axis: Axis,
+        angle: float,
+        degrees: bool = False,
+    ) -> Quaternion:
+        return get_rotation_quat(
+            axis=axis,
+            angle=angle,
+            degrees=degrees,
+        )
 
     @property
     def array(self) -> NDArrayFloat64:
@@ -787,6 +808,61 @@ class Rotation(pyd.BaseModel):
     def as_scipy_rotation(self):
         """Return the underlying ScipyRotation object"""
         return self._rotation
+
+
+class Axis(StrEnum):
+    x = auto()
+    y = auto()
+    z = auto()
+
+
+def get_rotation_quat(
+    axis: Axis,
+    angle: float,
+    degrees: bool = False,
+) -> Quaternion:
+    match axis:
+        case Axis.x:
+            return Quaternion.from_rotation(
+                r=Rotation.from_euler(
+                    seq="xyz",
+                    angles=(angle, 0, 0),
+                    degrees=degrees,
+                )
+            )
+        case Axis.y:
+            return Quaternion.from_rotation(
+                r=Rotation.from_euler(
+                    seq="xyz",
+                    angles=(0, angle, 0),
+                    degrees=degrees,
+                )
+            )
+        case Axis.z:
+            return Quaternion.from_rotation(
+                r=Rotation.from_euler(
+                    seq="xyz",
+                    angles=(0, 0, angle),
+                    degrees=degrees,
+                )
+            )
+        case _:
+            raise ValueError("Invalid axis")
+
+
+def get_single_axis_displacement(
+    axis: Axis,
+    distance: float,
+) -> VectorR3:
+    match axis:
+        case Axis.x:
+            return VectorR3(data=(distance, 0, 0))
+        case Axis.y:
+            return VectorR3(data=(0, distance, 0))
+        case Axis.z:
+            return VectorR3(data=(0, 0, distance))
+        case _:
+            raise ValueError("Invalid axis")
 
 
 def _type():

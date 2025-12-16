@@ -1,7 +1,8 @@
 from __future__ import annotations
 from enum import StrEnum, auto
 from itertools import product
-from typing import Literal, Optional, Self
+from typing import Annotated, Literal, Optional, Self
+import pydantic
 import typing_extensions
 
 import numpy as np
@@ -14,7 +15,7 @@ from djin.transforms.transform3d import (
     to_parent_frame,
     to_target_frame,
 )
-from djin.base import immutable
+from djin.base import TypeDiscriminator, immutable
 
 
 class IntegralConvention(StrEnum):
@@ -110,6 +111,29 @@ class MassProperties(Transformable3D[C], Stowable):
             warehouse=warehouse,
         )
 
+        # def relational_matrix(a, b):
+        #     ax, ay, az = tuple(a)
+        #     bx, by, bz = tuple(b)
+        #     return np.array(
+        #         [
+        #             [
+        #                 ay * by + az * bz,
+        #                 -(ax * by + ay * bx) / 2,
+        #                 -(ax * bz + az * bx) / 2,
+        #             ],
+        #             [
+        #                 -(ax * by + ay * bx) / 2,
+        #                 ax * bx + az * bz,
+        #                 -(ay * bz + az * by) / 2,
+        #             ],
+        #             [
+        #                 -(ax * bz + az * bx) / 2,
+        #                 -(ay * bz + az * by) / 2,
+        #                 ax * bx + ay * by,
+        #             ],
+        #         ]
+        #     )
+
         f = starting_frame.contents
         x, y, z = starting_frame.contents.pose.position.vector.data
         parallel_axis_term_in_new_frame = self.mass * np.array(
@@ -119,8 +143,15 @@ class MassProperties(Transformable3D[C], Stowable):
                 [-z * x, -z * y, (x**2 + y**2)],
             ]
         )
-
         r = f.pose.orientation.quaternion.as_rotation()
+
+        # r_diff = starting_frame.contents.pose.position.vector.data
+        # c = r.as_matrix() @ self.pose.position.vector.data
+        # parallel_axis_term_in_new_frame = self.mass * (
+        #     relational_matrix(r_diff, r_diff) - 2 * relational_matrix(r_diff, c)
+        # )
+
+        parallel_axis_term_in_new_frame = np.zeros((3, 3))
         inertia_tensor_rotated_to_new_frame = (
             r.as_matrix() @ self.inertia_tensor.array @ r.inv().as_matrix()
         )
@@ -129,7 +160,6 @@ class MassProperties(Transformable3D[C], Stowable):
             array=parallel_axis_term_in_new_frame + inertia_tensor_rotated_to_new_frame,
             integral_convention=self.inertia_tensor.integral_convention,
         )
-
         return (
             new_pose,
             new_inertia_tensor,
@@ -182,3 +212,7 @@ class MassProperties(Transformable3D[C], Stowable):
             target_frame=target_frame,
             warehouse=warehouse,
         )
+
+
+MPCatalogue = Annotated[Frame | MassProperties, TypeDiscriminator]
+MPWarehouse = Warehouse[MPCatalogue]

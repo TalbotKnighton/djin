@@ -31,8 +31,8 @@ class Frame(Transformable3D[tuple[Pose3D]], Stowable):
     pose: Pose3D
 
     @property
-    def parent(self) -> Ref[Frame]:
-        return Ref[Frame](id=self.parent_id)
+    def parent(self) -> Optional[Ref[Frame]]:
+        return Ref[Frame](id=self.parent_id) if self.parent_id is not None else None
 
     def get_component_field_names(self) -> tuple[str, ...]:
         return ("pose",)

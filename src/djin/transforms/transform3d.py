@@ -5,6 +5,7 @@ import pydantic as pyd
 from djin.base import immutable
 from djin.containers.core import ID, Container, Ref, Warehouse, get_warehouse
 
+
 if TYPE_CHECKING:
     from djin.frames.core import Frame
 
@@ -82,18 +83,21 @@ def to_parent_frame(
 
     tf = _get_transformable_object(transformable=transformable, warehouse=warehouse)
     if starting_frame is None:  # Ground is parent of all frames
-        return tf.model_copy(deep=True)
+        _ = tf.model_copy(deep=True)
+        return _
     else:
-        return tf.with_new_components(
+        if not isinstance(starting_frame, Container):
+            sf = Ref[Frame](id=starting_frame).get()
+        else:
+            sf = starting_frame
+
+        _ = tf.with_new_components(
             components=tf.get_components_in_parent_frame(
-                starting_frame=(
-                    Ref[Frame](id=starting_frame).get()
-                    if not isinstance(starting_frame, Container)
-                    else starting_frame
-                ),
+                starting_frame=sf,
                 warehouse=warehouse,
             )
         )
+        return _
 
 
 def to_ground_frame(
@@ -110,11 +114,17 @@ def to_ground_frame(
     if starting_frame is None:
         return tf.model_copy(deep=True)
     else:
-        parent = (
-            starting_frame.contents.parent.get(warehouse=warehouse)
-            if isinstance(starting_frame, Container)
-            else Ref[Frame](id=starting_frame).get(warehouse=warehouse)
-        )
+        if isinstance(starting_frame, (str | int)):
+            starting_frame = Ref[Frame](id=starting_frame).get(warehouse=warehouse)
+        if not isinstance(starting_frame, Container):
+            raise ValueError(f"Invalid starting frame {starting_frame}")
+
+        new_parent_ref = starting_frame.contents.parent
+        if new_parent_ref is not None:
+            new_parent = new_parent_ref.get(warehouse=warehouse)
+        else:
+            new_parent = None
+
         up_one_level = to_parent_frame(
             transformable=tf,
             starting_frame=starting_frame,
@@ -122,7 +132,7 @@ def to_ground_frame(
         )
         return to_ground_frame(
             transformable=up_one_level,
-            starting_frame=parent,
+            starting_frame=new_parent,
             warehouse=warehouse,
         )
 

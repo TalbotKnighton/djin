@@ -3,6 +3,8 @@ from djin.containers.core import (
     Warehouse,
     Ref,
     ref,
+    ID,
+    Stowable,
 )
 
 __all__ = [
@@ -10,4 +12,6 @@ __all__ = [
     "Warehouse",
     "Ref",
     "ref",
+    "ID",
+    "Stowable",
 ]
