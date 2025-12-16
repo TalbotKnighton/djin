@@ -71,8 +71,8 @@ class VectorR3(pyd.BaseModel):
     def __len__(self) -> int:
         return len(self.array)
 
-    def __array__(self) -> np.ndarray:
-        return self.array
+    def __array__(self, *args, **kwargs) -> np.ndarray:
+        return self.array.__array__(*args, **kwargs)
 
     def __array_ufunc__(self, ufunc, method, *inputs, **kwargs):
         """
